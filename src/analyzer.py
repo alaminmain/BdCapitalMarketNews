@@ -4,9 +4,11 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from typing import List, Dict
 
 from google import genai
+from google.genai import errors as genai_errors
 from google.genai import types
 
 from .config import GEMINI_API_KEY, GEMINI_MODEL
@@ -106,6 +108,37 @@ def _normalize(
     return out
 
 
+def _generate_with_retry(client, prompt: str, config, max_attempts: int = 5):
+    """Wrap generate_content with backoff for transient 5xx and 429s.
+
+    Gemini periodically returns 503 UNAVAILABLE under load and the SDK's
+    built-in retry budget is small. Retrying with exponential backoff
+    has been more reliable than a single shot.
+    """
+    delay = 4
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return client.models.generate_content(
+                model=GEMINI_MODEL, contents=prompt, config=config
+            )
+        except genai_errors.ServerError as exc:  # 5xx
+            if attempt == max_attempts:
+                raise
+            log.warning(
+                "Gemini %s on attempt %d/%d; sleeping %ds",
+                exc.code, attempt, max_attempts, delay,
+            )
+        except genai_errors.ClientError as exc:  # 4xx
+            if exc.code != 429 or attempt == max_attempts:
+                raise
+            log.warning(
+                "Gemini 429 rate-limited on attempt %d/%d; sleeping %ds",
+                attempt, max_attempts, delay,
+            )
+        time.sleep(delay)
+        delay = min(delay * 2, 60)
+
+
 def analyze_headlines(headlines: List[Dict[str, str]]) -> List[Dict[str, str]]:
     """Send headlines to Gemini and return classified entries."""
     if not headlines:
@@ -119,17 +152,13 @@ def analyze_headlines(headlines: List[Dict[str, str]]) -> List[Dict[str, str]]:
 
     client = genai.Client(api_key=GEMINI_API_KEY)
     prompt = _build_prompt(headlines)
-    log.info("Calling Gemini (%s) with %d headlines", GEMINI_MODEL, len(headlines))
-
-    response = client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            system_instruction=ANALYST_PERSONA,
-            temperature=0.3,
-            response_mime_type="application/json",
-        ),
+    config = types.GenerateContentConfig(
+        system_instruction=ANALYST_PERSONA,
+        temperature=0.3,
+        response_mime_type="application/json",
     )
+    log.info("Calling Gemini (%s) with %d headlines", GEMINI_MODEL, len(headlines))
+    response = _generate_with_retry(client, prompt, config)
 
     raw = getattr(response, "text", "") or ""
     parsed = _extract_json_array(raw)

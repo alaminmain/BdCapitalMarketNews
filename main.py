@@ -9,9 +9,10 @@ from src import config
 from src.analyzer import analyze_headlines
 from src.database import (
     fetch_latest,
-    filter_unseen_headlines,
+    find_unseen_headlines,
     init_db,
     insert_updates,
+    mark_headlines_seen,
 )
 from src.rss_generator import write_feed
 from src.scraper import scrape_all
@@ -37,8 +38,8 @@ def run(dry_run: bool = False) -> int:
         log.warning("No headlines scraped; aborting before AI call.")
         return 1
 
-    log.info("== Stage 2: dedupe against previously-seen headlines ==")
-    fresh = filter_unseen_headlines(config.DB_PATH, headlines)
+    log.info("== Stage 2: find unseen headlines ==")
+    fresh = find_unseen_headlines(config.DB_PATH, headlines)
     if not fresh:
         log.info("Nothing new since last run; refreshing feed only.")
 
@@ -49,6 +50,10 @@ def run(dry_run: bool = False) -> int:
         classified = []
     else:
         classified = analyze_headlines(fresh)
+        # Only mark headlines as seen once Gemini has actually returned.
+        # If the call raised, we leave seen_headlines untouched so the
+        # next run re-attempts the same set.
+        mark_headlines_seen(config.DB_PATH, fresh)
 
     log.info("== Stage 4: persist to SQLite ==")
     inserted = insert_updates(config.DB_PATH, classified)

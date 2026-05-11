@@ -100,31 +100,47 @@ def insert_updates(
     return inserted
 
 
-def filter_unseen_headlines(
+def _headline_hash(h: Dict[str, str]) -> str:
+    return hashlib.sha256(
+        f"{h.get('source','')}|{h['title'].strip().lower()}".encode("utf-8")
+    ).hexdigest()
+
+
+def find_unseen_headlines(
     db_path: Path, headlines: Iterable[Dict[str, str]]
 ) -> List[Dict[str, str]]:
-    """Return headlines we haven't scraped before, marking them seen."""
+    """Return headlines not previously seen. Read-only — does NOT mark them.
+
+    Pair with ``mark_headlines_seen`` *after* downstream processing
+    succeeds so a Gemini failure does not silently swallow the day's
+    data.
+    """
     fresh: List[Dict[str, str]] = []
     total = 0
     with _connect(db_path) as conn:
         for h in headlines:
             total += 1
-            digest = hashlib.sha256(
-                f"{h.get('source','')}|{h['title'].strip().lower()}".encode("utf-8")
-            ).hexdigest()
             row = conn.execute(
-                "SELECT 1 FROM seen_headlines WHERE hash = ?", (digest,)
+                "SELECT 1 FROM seen_headlines WHERE hash = ?",
+                (_headline_hash(h),),
             ).fetchone()
-            if row:
-                continue
-            conn.execute(
-                "INSERT INTO seen_headlines (hash, source, title) "
-                "VALUES (?, ?, ?)",
-                (digest, h.get("source", ""), h["title"]),
-            )
-            fresh.append(h)
+            if not row:
+                fresh.append(h)
     log.info("Headline dedup: %d new of %d scraped", len(fresh), total)
     return fresh
+
+
+def mark_headlines_seen(
+    db_path: Path, headlines: Iterable[Dict[str, str]]
+) -> None:
+    """Record headlines so future scrapes skip them. Idempotent."""
+    with _connect(db_path) as conn:
+        for h in headlines:
+            conn.execute(
+                "INSERT OR IGNORE INTO seen_headlines (hash, source, title) "
+                "VALUES (?, ?, ?)",
+                (_headline_hash(h), h.get("source", ""), h["title"]),
+            )
 
 
 def fetch_latest(db_path: Path, limit: int = 50) -> List[Dict[str, str]]:
