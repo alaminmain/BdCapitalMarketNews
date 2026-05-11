@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BD Markets Daily Pulse</title>
+  <link rel="alternate" type="application/rss+xml"
+        title="BD Markets Daily Pulse" href="feed.xml" />
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      font: 16px/1.55 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      max-width: 720px; margin: 3rem auto; padding: 0 1.25rem;
+    }
+    h1 { margin-bottom: .25rem; }
+    .sub { opacity: .7; margin-top: 0; }
+    code, pre {
+      background: rgba(127,127,127,.12); padding: .15em .4em;
+      border-radius: 4px; font-size: .92em;
+    }
+    pre { padding: .9rem 1rem; overflow-x: auto; }
+    .badge {
+      display: inline-block; padding: .15rem .55rem; border-radius: 999px;
+      font-size: .8rem; background: #1f6feb22; color: #1f6feb;
+    }
+    a.button {
+      display: inline-block; margin-top: .5rem; padding: .55rem 1rem;
+      border: 1px solid currentColor; border-radius: 8px; text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <span class="badge">RSS feed</span>
+  <h1>Bangladesh Capital &amp; Money Markets &mdash; Daily Pulse</h1>
+  <p class="sub">
+    AI-curated <strong>Good / Bad / Ugly</strong> assessment of DSE corporate
+    disclosures and Bangladesh financial news, refreshed every morning.
+  </p>
+
+  <a class="button" href="feed.xml">Subscribe via RSS</a>
+
+  <h2>Use the feed on your site</h2>
+  <p>Drop the URL below into any RSS widget (e.g.
+  <code>rss-parser</code>, <code>feed.js</code>, WordPress RSS block,
+  Notion embeds):</p>
+  <pre id="url"></pre>
+
+  <script>
+    document.getElementById("url").textContent =
+      new URL("feed.xml", location.href).toString();
+  </script>
+</body>
+</html>

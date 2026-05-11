@@ -1,0 +1,51 @@
+name: Daily BD Markets News Run
+
+on:
+  schedule:
+    # 03:00 UTC = 09:00 Asia/Dhaka (UTC+6, no DST). DSE opens 10:00 local.
+    - cron: "0 3 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-scrape
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run aggregator
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          FEED_PUBLIC_URL: ${{ vars.FEED_PUBLIC_URL }}
+        run: python main.py --verbose
+
+      - name: Commit updated feed and database
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/feed.xml market_updates.db
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore(data): daily refresh $(date -u +%Y-%m-%d)"
+            git push
+          fi

@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# Local-only build artefacts (the GH Action recreates these)
+*.log
+.cache/
+.idea/
+.vscode/
+.claude/
+
+# Per-developer test artifacts; the cron job creates the canonical ones
+# inside CI and commits them back. Don't ship local test data.
+_*.py
+!**/__init__.py
+!**/__main__.py
