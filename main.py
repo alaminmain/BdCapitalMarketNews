@@ -13,6 +13,7 @@ from src.database import (
     init_db,
     insert_updates,
     mark_headlines_seen,
+    reset_today_seen,
 )
 from src.rss_generator import write_feed
 from src.scraper import scrape_all
@@ -26,10 +27,13 @@ def configure_logging(verbose: bool) -> None:
     )
 
 
-def run(dry_run: bool = False) -> int:
+def run(dry_run: bool = False, reset_today: bool = False) -> int:
     log = logging.getLogger("bd-markets")
 
     init_db(config.DB_PATH)
+
+    if reset_today:
+        reset_today_seen(config.DB_PATH)
 
     log.info("== Stage 1: scrape ==")
     headlines = scrape_all()
@@ -75,10 +79,18 @@ def main() -> int:
         action="store_true",
         help="Scrape and store from cache only; skip Gemini",
     )
+    parser.add_argument(
+        "--reset-today",
+        action="store_true",
+        help=(
+            "Wipe today's seen_headlines before scraping so the day's "
+            "batch re-enters the pipeline. Used by manual workflow triggers."
+        ),
+    )
     args = parser.parse_args()
     configure_logging(args.verbose)
     try:
-        return run(dry_run=args.dry_run)
+        return run(dry_run=args.dry_run, reset_today=args.reset_today)
     except Exception:
         logging.exception("Fatal error during pipeline run")
         return 2

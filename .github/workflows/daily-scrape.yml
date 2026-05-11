@@ -38,7 +38,11 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           FEED_PUBLIC_URL: ${{ vars.FEED_PUBLIC_URL }}
-        run: python main.py --verbose
+          # Manual triggers wipe today's seen_headlines so the full
+          # day's batch re-enters the pipeline. Scheduled cron runs
+          # respect the dedup so they only process truly-new items.
+          EXTRA_FLAGS: ${{ github.event_name == 'workflow_dispatch' && '--reset-today' || '' }}
+        run: python main.py --verbose $EXTRA_FLAGS
 
       - name: Commit updated feed and database
         run: |

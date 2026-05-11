@@ -143,6 +143,22 @@ def mark_headlines_seen(
             )
 
 
+def reset_today_seen(db_path: Path) -> int:
+    """Delete today's (UTC) seen_headlines rows so they re-enter dedup.
+
+    Useful after a failed run that marked headlines but never classified
+    them, or when you want a manual workflow trigger to re-process the
+    full day's batch.
+    """
+    with _connect(db_path) as conn:
+        cur = conn.execute(
+            "DELETE FROM seen_headlines WHERE date(first_seen) = date('now')"
+        )
+        deleted = cur.rowcount
+    log.info("Reset cleared %d seen_headlines from today", deleted)
+    return deleted
+
+
 def fetch_latest(db_path: Path, limit: int = 50) -> List[Dict[str, str]]:
     with _connect(db_path) as conn:
         rows = conn.execute(

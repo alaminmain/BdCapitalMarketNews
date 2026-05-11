@@ -38,7 +38,7 @@ DSE returns **403** to anything that looks like a bot, including the obvious `BD
 - `seen_headlines` table (keyed on `sha256(source|lower(title))`) — applied to **scraper output before Gemini**. Saves API quota when the same disclosure lingers on the DSE marquee across days.
 - `market_updates.hash` (keyed on `sha256(date|lower(summary))`) — applied to **Gemini output before insert**. Makes same-day re-runs of `main.py` idempotent.
 
-Wiping `seen_headlines` forces re-classification of everything currently on the page.
+Wiping `seen_headlines` forces re-classification of everything currently on the page. The `--reset-today` flag (passed automatically by manual `workflow_dispatch` triggers in CI) deletes only today's UTC entries from `seen_headlines` — useful for recovering from a failed run without re-classifying the whole history.
 
 ### Gemini free tier only supports Flash models
 `gemini-2.0-flash`, `gemini-3.1-pro-preview`, and other Pro/Preview models return `429 RESOURCE_EXHAUSTED` with `limit: 0` on free-tier keys — they require a paid billing account. The default in `config.py` is `gemini-2.5-flash` because that is the most capable model that works without billing. The Gemini SDK is `google-genai` (the `google-generativeai` package is deprecated).
