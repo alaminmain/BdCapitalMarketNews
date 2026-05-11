@@ -93,9 +93,13 @@ def write_html(items: List[Dict[str, str]], output_path: Path) -> Path:
             by_cat[cat].append(r)
 
     last_updated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    sections = "\n".join(
+    rendered_groups = [
         _render_section(c, by_cat[c]) for c in CATEGORY_ORDER if by_cat[c]
-    ) or '<p class="empty">No classified items yet &mdash; check back soon.</p>'
+    ]
+    if rendered_groups:
+        sections = '<div class="groups">' + "\n".join(rendered_groups) + "</div>"
+    else:
+        sections = '<p class="empty">No classified items yet &mdash; check back soon.</p>'
 
     doc = _PAGE_TEMPLATE.format(
         title=_esc(FEED_TITLE),
@@ -142,7 +146,7 @@ _PAGE_TEMPLATE = """<!doctype html>
       background: var(--bg); color: var(--fg);
       padding: 2rem 1.25rem 4rem;
     }}
-    .wrap {{ max-width: 1100px; margin: 0 auto; }}
+    .wrap {{ max-width: 1340px; margin: 0 auto; }}
     .top {{
       display:flex; align-items:flex-start; justify-content:space-between;
       flex-wrap:wrap; gap:1rem;
@@ -178,49 +182,70 @@ _PAGE_TEMPLATE = """<!doctype html>
     .stat.bad  .num, .stat.bad  .label {{ color: var(--bad);  }}
     .stat.ugly .num, .stat.ugly .label {{ color: var(--ugly); }}
 
-    .group {{ margin: 2.75rem 0 0; }}
+    .groups {{
+      display:grid; gap:1.25rem; align-items:start;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      margin-top: 1.5rem;
+    }}
+    @media (max-width: 1100px) {{
+      .groups {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
+    }}
+    @media (max-width: 720px) {{
+      .groups {{ grid-template-columns: 1fr; }}
+    }}
+    .group {{
+      background: var(--card); border:1px solid var(--line);
+      border-radius:14px; padding:.85rem .9rem 1rem;
+      display:flex; flex-direction:column; min-width: 0;
+    }}
     .group-head {{
-      display:flex; align-items:baseline; gap:.85rem; flex-wrap:wrap;
-      padding-bottom:.65rem; margin-bottom:1.1rem;
+      display:flex; align-items:baseline; gap:.55rem; flex-wrap:wrap;
+      padding-bottom:.55rem; margin-bottom:.85rem;
       border-bottom: 2px solid var(--line);
     }}
+    .group-good .group-head {{ border-bottom-color: var(--good); }}
+    .group-bad  .group-head {{ border-bottom-color: var(--bad);  }}
+    .group-ugly .group-head {{ border-bottom-color: var(--ugly); }}
     .group-head h2 {{
-      margin:0; display:flex; align-items:baseline; gap:.7rem;
-      font-size:1.1rem; font-weight:600;
+      margin:0; display:flex; align-items:baseline; gap:.5rem;
+      font-size:1rem; font-weight:600;
     }}
     .group-name {{
-      display:inline-block; font-size:1.4rem; font-weight:800;
-      padding:.2rem .85rem; border-radius:10px; color:#fff;
-      letter-spacing:.02em; text-transform:uppercase;
+      display:inline-block; font-size:1.15rem; font-weight:800;
+      padding:.18rem .7rem; border-radius:8px; color:#fff;
+      letter-spacing:.04em; text-transform:uppercase;
       box-shadow: 0 2px 6px rgba(15,23,42,.15);
     }}
     .group-good .group-name {{ background: var(--good); }}
     .group-bad  .group-name {{ background: var(--bad);  }}
     .group-ugly .group-name {{ background: var(--ugly); }}
-    .count {{ color: var(--muted); font-weight:500; font-size:.95rem; }}
+    .count {{
+      color: var(--muted); font-weight:600; font-size:.75rem;
+      padding:.12rem .45rem; border-radius:999px; background: var(--chip);
+    }}
     .group-blurb {{
-      color: var(--muted); margin:0; font-size:.9rem; flex:1 1 100%;
+      color: var(--muted); margin:0; font-size:.78rem; flex:1 1 100%;
     }}
 
-    .cards {{
-      display:grid; gap:1rem;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    }}
+    .cards {{ display:flex; flex-direction:column; gap:.7rem; }}
     .card {{
-      background: var(--card); border:1px solid var(--line);
-      border-left:4px solid var(--line);
-      border-radius:12px; padding:1rem 1.1rem;
+      background: var(--bg); border:1px solid var(--line);
+      border-left:3px solid var(--line);
+      border-radius:10px; padding:.7rem .85rem;
       display:flex; flex-direction:column;
+    }}
+    @media (prefers-color-scheme: dark) {{
+      .card {{ background: rgba(255,255,255,.025); }}
     }}
     .cat-good {{ border-left-color: var(--good); }}
     .cat-bad  {{ border-left-color: var(--bad);  }}
     .cat-ugly {{ border-left-color: var(--ugly); }}
     .card header {{
-      display:flex; align-items:center; gap:.5rem; flex-wrap:wrap;
-      margin-bottom:.5rem;
+      display:flex; align-items:center; gap:.4rem; flex-wrap:wrap;
+      margin-bottom:.35rem;
     }}
     .badge {{
-      font-size:.7rem; font-weight:700; padding:.18rem .55rem;
+      font-size:.62rem; font-weight:700; padding:.12rem .45rem;
       border-radius:999px; text-transform:uppercase; letter-spacing:.06em;
       color:#fff;
     }}
@@ -229,24 +254,30 @@ _PAGE_TEMPLATE = """<!doctype html>
     .cat-ugly .badge {{ background: var(--ugly); }}
     .ticker {{
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-weight:700; font-size:.85rem;
-      padding:.15rem .5rem; border-radius:6px;
-      background: var(--chip);
+      font-weight:700; font-size:.74rem;
+      padding:.1rem .4rem; border-radius:5px; background: var(--chip);
     }}
     .card time {{
-      margin-left:auto; color: var(--muted); font-size:.78rem;
+      margin-left:auto; color: var(--muted); font-size:.72rem;
       font-variant-numeric: tabular-nums;
     }}
     .card h3 {{
-      margin:.15rem 0 .55rem; font-size:1.05rem; line-height:1.35;
+      margin:.1rem 0 .4rem; font-size:.95rem; line-height:1.3;
+      font-weight:600;
     }}
-    .desc {{ margin: 0 0 .65rem; }}
+    .desc {{ margin: 0 0 .5rem; font-size:.86rem; line-height:1.45; }}
     .why {{
-      margin: 0 0 .55rem; padding:.55rem .75rem;
-      background: var(--chip); border-radius:8px; font-size:.92rem;
+      margin: 0 0 .45rem; padding:.5rem .65rem;
+      background: var(--chip); border-radius:6px;
+      font-size:.8rem; line-height:1.45;
+    }}
+    .why strong {{
+      font-size:.68rem; text-transform:uppercase; letter-spacing:.06em;
+      display:block; color: var(--muted); margin-bottom:.15rem;
+      font-weight:700;
     }}
     .src {{
-      margin-top:auto; font-size:.85rem; color:var(--fg);
+      margin-top:auto; font-size:.78rem; color:var(--fg);
       text-decoration:none; border-bottom:1px dashed var(--muted);
       align-self:flex-start;
     }}

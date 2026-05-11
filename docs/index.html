@@ -25,7 +25,7 @@
       background: var(--bg); color: var(--fg);
       padding: 2rem 1.25rem 4rem;
     }
-    .wrap { max-width: 1100px; margin: 0 auto; }
+    .wrap { max-width: 1340px; margin: 0 auto; }
     .top {
       display:flex; align-items:flex-start; justify-content:space-between;
       flex-wrap:wrap; gap:1rem;
@@ -61,49 +61,70 @@
     .stat.bad  .num, .stat.bad  .label { color: var(--bad);  }
     .stat.ugly .num, .stat.ugly .label { color: var(--ugly); }
 
-    .group { margin: 2.75rem 0 0; }
+    .groups {
+      display:grid; gap:1.25rem; align-items:start;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      margin-top: 1.5rem;
+    }
+    @media (max-width: 1100px) {
+      .groups { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 720px) {
+      .groups { grid-template-columns: 1fr; }
+    }
+    .group {
+      background: var(--card); border:1px solid var(--line);
+      border-radius:14px; padding:.85rem .9rem 1rem;
+      display:flex; flex-direction:column; min-width: 0;
+    }
     .group-head {
-      display:flex; align-items:baseline; gap:.85rem; flex-wrap:wrap;
-      padding-bottom:.65rem; margin-bottom:1.1rem;
+      display:flex; align-items:baseline; gap:.55rem; flex-wrap:wrap;
+      padding-bottom:.55rem; margin-bottom:.85rem;
       border-bottom: 2px solid var(--line);
     }
+    .group-good .group-head { border-bottom-color: var(--good); }
+    .group-bad  .group-head { border-bottom-color: var(--bad);  }
+    .group-ugly .group-head { border-bottom-color: var(--ugly); }
     .group-head h2 {
-      margin:0; display:flex; align-items:baseline; gap:.7rem;
-      font-size:1.1rem; font-weight:600;
+      margin:0; display:flex; align-items:baseline; gap:.5rem;
+      font-size:1rem; font-weight:600;
     }
     .group-name {
-      display:inline-block; font-size:1.4rem; font-weight:800;
-      padding:.2rem .85rem; border-radius:10px; color:#fff;
-      letter-spacing:.02em; text-transform:uppercase;
+      display:inline-block; font-size:1.15rem; font-weight:800;
+      padding:.18rem .7rem; border-radius:8px; color:#fff;
+      letter-spacing:.04em; text-transform:uppercase;
       box-shadow: 0 2px 6px rgba(15,23,42,.15);
     }
     .group-good .group-name { background: var(--good); }
     .group-bad  .group-name { background: var(--bad);  }
     .group-ugly .group-name { background: var(--ugly); }
-    .count { color: var(--muted); font-weight:500; font-size:.95rem; }
+    .count {
+      color: var(--muted); font-weight:600; font-size:.75rem;
+      padding:.12rem .45rem; border-radius:999px; background: var(--chip);
+    }
     .group-blurb {
-      color: var(--muted); margin:0; font-size:.9rem; flex:1 1 100%;
+      color: var(--muted); margin:0; font-size:.78rem; flex:1 1 100%;
     }
 
-    .cards {
-      display:grid; gap:1rem;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    }
+    .cards { display:flex; flex-direction:column; gap:.7rem; }
     .card {
-      background: var(--card); border:1px solid var(--line);
-      border-left:4px solid var(--line);
-      border-radius:12px; padding:1rem 1.1rem;
+      background: var(--bg); border:1px solid var(--line);
+      border-left:3px solid var(--line);
+      border-radius:10px; padding:.7rem .85rem;
       display:flex; flex-direction:column;
+    }
+    @media (prefers-color-scheme: dark) {
+      .card { background: rgba(255,255,255,.025); }
     }
     .cat-good { border-left-color: var(--good); }
     .cat-bad  { border-left-color: var(--bad);  }
     .cat-ugly { border-left-color: var(--ugly); }
     .card header {
-      display:flex; align-items:center; gap:.5rem; flex-wrap:wrap;
-      margin-bottom:.5rem;
+      display:flex; align-items:center; gap:.4rem; flex-wrap:wrap;
+      margin-bottom:.35rem;
     }
     .badge {
-      font-size:.7rem; font-weight:700; padding:.18rem .55rem;
+      font-size:.62rem; font-weight:700; padding:.12rem .45rem;
       border-radius:999px; text-transform:uppercase; letter-spacing:.06em;
       color:#fff;
     }
@@ -112,24 +133,30 @@
     .cat-ugly .badge { background: var(--ugly); }
     .ticker {
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-weight:700; font-size:.85rem;
-      padding:.15rem .5rem; border-radius:6px;
-      background: var(--chip);
+      font-weight:700; font-size:.74rem;
+      padding:.1rem .4rem; border-radius:5px; background: var(--chip);
     }
     .card time {
-      margin-left:auto; color: var(--muted); font-size:.78rem;
+      margin-left:auto; color: var(--muted); font-size:.72rem;
       font-variant-numeric: tabular-nums;
     }
     .card h3 {
-      margin:.15rem 0 .55rem; font-size:1.05rem; line-height:1.35;
+      margin:.1rem 0 .4rem; font-size:.95rem; line-height:1.3;
+      font-weight:600;
     }
-    .desc { margin: 0 0 .65rem; }
+    .desc { margin: 0 0 .5rem; font-size:.86rem; line-height:1.45; }
     .why {
-      margin: 0 0 .55rem; padding:.55rem .75rem;
-      background: var(--chip); border-radius:8px; font-size:.92rem;
+      margin: 0 0 .45rem; padding:.5rem .65rem;
+      background: var(--chip); border-radius:6px;
+      font-size:.8rem; line-height:1.45;
+    }
+    .why strong {
+      font-size:.68rem; text-transform:uppercase; letter-spacing:.06em;
+      display:block; color: var(--muted); margin-bottom:.15rem;
+      font-weight:700;
     }
     .src {
-      margin-top:auto; font-size:.85rem; color:var(--fg);
+      margin-top:auto; font-size:.78rem; color:var(--fg);
       text-decoration:none; border-bottom:1px dashed var(--muted);
       align-self:flex-start;
     }
@@ -152,7 +179,7 @@
     <div class="top">
       <div>
         <h1>Bangladesh Capital &amp; Money Markets — Daily Pulse</h1>
-        <p class="sub">Last updated: 2026-05-11 10:14 UTC</p>
+        <p class="sub">Last updated: 2026-05-11 10:33 UTC</p>
       </div>
       <a class="rss" href="feed.xml">RSS feed</a>
     </div>
@@ -165,7 +192,7 @@
       <div class="stat ugly"><div class="num">8</div><div class="label">Ugly</div></div>
     </div>
 
-    <section class="group group-good">  <header class="group-head">    <h2><span class="group-name">Good</span>        <span class="count">19 items</span></h2>    <p class="group-blurb">High dividends, structural reforms, strong earnings.</p>  </header>  <div class="cards"><article class="card cat-good"><header><span class="badge">Good</span><time>2026-05-11</time></header><h3>BSEC Mandates Female Independent Directors for Listed Firms</h3><p class="desc">The Bangladesh Securities and Exchange Commission (BSEC) has set a deadline for all listed companies to appoint female independent directors to their boards. This regulatory initiative aims to enhance corporate governance, promote diversity, and ensure broader representation in decision-making processes.</p><p class="why"><strong>Why this matters:</strong> The Bangladesh Securities and Exchange Commission (BSEC) setting a deadline for appointing female independent directors is a positive step towards enhancing corporate governance and diversity.</p><a class="src" href="https://thefinancialexpress.com.bd/stock/bsec-sets-june-30-deadline-for-listed-firms-to-appoint-female-independent-directors" target="_blank" rel="noopener">Read source &rarr;</a></article>
+    <div class="groups"><section class="group group-good">  <header class="group-head">    <h2><span class="group-name">Good</span>        <span class="count">19 items</span></h2>    <p class="group-blurb">High dividends, structural reforms, strong earnings.</p>  </header>  <div class="cards"><article class="card cat-good"><header><span class="badge">Good</span><time>2026-05-11</time></header><h3>BSEC Mandates Female Independent Directors for Listed Firms</h3><p class="desc">The Bangladesh Securities and Exchange Commission (BSEC) has set a deadline for all listed companies to appoint female independent directors to their boards. This regulatory initiative aims to enhance corporate governance, promote diversity, and ensure broader representation in decision-making processes.</p><p class="why"><strong>Why this matters:</strong> The Bangladesh Securities and Exchange Commission (BSEC) setting a deadline for appointing female independent directors is a positive step towards enhancing corporate governance and diversity.</p><a class="src" href="https://thefinancialexpress.com.bd/stock/bsec-sets-june-30-deadline-for-listed-firms-to-appoint-female-independent-directors" target="_blank" rel="noopener">Read source &rarr;</a></article>
 <article class="card cat-good"><header><span class="badge">Good</span><time>2026-05-11</time></header><h3>Forex Reserve Investment Returns Reach Six-Year Peak</h3><p class="desc">Returns on Bangladesh&#x27;s foreign exchange reserve investments have reached their highest level in six years. This positive development indicates effective management of the country&#x27;s reserves, enhancing its financial strength and potentially contributing to overall economic stability.</p><p class="why"><strong>Why this matters:</strong> Achieving the highest returns on foreign exchange reserve investments in six years is a positive development, enhancing the country&#x27;s financial strength and reserve management effectiveness.</p><a class="src" href="https://thefinancialexpress.com.bd/economy/returns-on-forex-reserve-investments-at-6-yr-high" target="_blank" rel="noopener">Read source &rarr;</a></article>
 <article class="card cat-good"><header><span class="badge">Good</span><time>2026-05-11</time></header><h3>Remittance Inflows Exceed Previous Fiscal Year&#x27;s Total</h3><p class="desc">Bangladesh&#x27;s remittance inflows have already surpassed the total recorded in the last fiscal year, with one and a half months still remaining. This strong performance in remittances provides crucial support for the national economy and helps bolster foreign exchange reserves.</p><p class="why"><strong>Why this matters:</strong> Robust remittance growth, surpassing the previous fiscal year&#x27;s total with significant time remaining, provides crucial support for the national economy and foreign exchange reserves.</p><a class="src" href="https://thefinancialexpress.com.bd/economy/bangladesh-remittance-inflow-surpasses-last-fiscal-years-total-with-15-months-remaining" target="_blank" rel="noopener">Read source &rarr;</a></article>
 <article class="card cat-good"><header><span class="badge">Good</span><time>2026-05-11</time></header><h3>Major Megaproject Valued at BDT 334.75 Billion Nears Approval</h3><p class="desc">A significant megaproject, valued at BDT 334.75 billion, is reportedly ready for endorsement by the Executive Committee of the National Economic Council (ECNEC). This substantial investment in infrastructure is expected to stimulate economic growth and create employment opportunities across the country.</p><p class="why"><strong>Why this matters:</strong> The impending approval of a substantial megaproject indicates significant government investment in infrastructure, which can stimulate economic activity and job creation.</p><a class="src" href="https://thefinancialexpress.com.bd/economy/megaproject-worth-tk-33475b-ready-for-ecnec-endorsement" target="_blank" rel="noopener">Read source &rarr;</a></article>
@@ -207,7 +234,7 @@
 <article class="card cat-ugly"><header><span class="badge">Ugly</span><time>2026-05-11</time></header><h3>Brokers Advocate for Removal of Floor Price Amidst Worsening Market Stagnation</h3><p class="desc">Stockbrokers are pressing the BSEC to abolish the floor price mechanism, citing its contribution to deepening market gridlock and hindering liquidity.</p><p class="why"><strong>Why this matters:</strong> Stockbrokers are pressing the BSEC to abolish the floor price mechanism, citing its contribution to deepening market gridlock and hindering liquidity.</p></article>
 <article class="card cat-ugly"><header><span class="badge">Ugly</span><time>2026-05-11</time></header><h3>BSEC Imposes Hefty Fine on Vanguard Asset for Persistent Regulatory Breaches</h3><p class="desc">The Bangladesh Securities and Exchange Commission (BSEC) levied a BDT 227.5 million fine on Vanguard Asset Management for repeated violations of securities laws, underscoring severe regulatory non-compliance.</p><p class="why"><strong>Why this matters:</strong> The Bangladesh Securities and Exchange Commission (BSEC) levied a BDT 227.5 million fine on Vanguard Asset Management for repeated violations of securities laws, underscoring severe regulatory non-compliance.</p></article>
 <article class="card cat-ugly"><header><span class="badge">Ugly</span><time>2026-05-11</time></header><h3>Speculative Trading Drives Gains in Weak Companies, Raising Market Concerns</h3><p class="desc">The stock market is seeing gains led by fundamentally weak companies, fueled by speculative trading, which suggests an unhealthy market trend.</p><p class="why"><strong>Why this matters:</strong> The stock market is seeing gains led by fundamentally weak companies, fueled by speculative trading, which suggests an unhealthy market trend.</p></article>
-<article class="card cat-ugly"><header><span class="badge">Ugly</span><time>2026-05-11</time></header><h3>DSE Revokes Sonali Securities&#x27; Trading License</h3><p class="desc">The Dhaka Stock Exchange canceled the Trading Right Entitlement Certificate (TREC) of Sonali Securities Limited due to a violation of regulatory rules.</p><p class="why"><strong>Why this matters:</strong> The Dhaka Stock Exchange canceled the Trading Right Entitlement Certificate (TREC) of Sonali Securities Limited due to a violation of regulatory rules.</p></article></div></section>
+<article class="card cat-ugly"><header><span class="badge">Ugly</span><time>2026-05-11</time></header><h3>DSE Revokes Sonali Securities&#x27; Trading License</h3><p class="desc">The Dhaka Stock Exchange canceled the Trading Right Entitlement Certificate (TREC) of Sonali Securities Limited due to a violation of regulatory rules.</p><p class="why"><strong>Why this matters:</strong> The Dhaka Stock Exchange canceled the Trading Right Entitlement Certificate (TREC) of Sonali Securities Limited due to a violation of regulatory rules.</p></article></div></section></div>
 
     <footer class="foot">
       Generated automatically &middot; <a href="feed.xml">RSS</a> &middot;
