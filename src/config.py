@@ -10,7 +10,10 @@ DB_PATH = ROOT / "market_updates.db"
 FEED_PATH = DOCS_DIR / "feed.xml"
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.1-pro-preview")
+# Default to a Flash model so the project works on Google AI Studio's free
+# tier. Pro/Preview models (e.g. gemini-3.1-pro-preview) need a paid billing
+# account; set GEMINI_MODEL as a repo variable to opt in once enabled.
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 
 REQUEST_TIMEOUT = 20
 # Many BD news sites (DSE included) reject obvious-bot UAs with 403.
