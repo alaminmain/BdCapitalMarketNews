@@ -3,51 +3,191 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>BD Markets Daily Pulse</title>
-  <link rel="alternate" type="application/rss+xml"
-        title="BD Markets Daily Pulse" href="feed.xml" />
+  <title>Bangladesh Capital &amp; Money Markets — Daily Pulse</title>
+  <link rel="alternate" type="application/rss+xml" title="Bangladesh Capital &amp; Money Markets — Daily Pulse" href="feed.xml" />
   <style>
-    :root { color-scheme: light dark; }
+    :root {
+      --good:#16a34a; --bad:#f59e0b; --ugly:#dc2626;
+      --bg:#f6f8fb; --fg:#0f172a; --card:#ffffff;
+      --muted:#64748b; --line:#e2e8f0; --chip:#0f172a14;
+      color-scheme: light dark;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:#0b1220; --fg:#e6edf3; --card:#111827;
+        --muted:#94a3b8; --line:#1f2937; --chip:#e6edf314;
+      }
+    }
+    * { box-sizing: border-box; }
+    html,body { margin:0; padding:0; }
     body {
-      font: 16px/1.55 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      max-width: 720px; margin: 3rem auto; padding: 0 1.25rem;
+      font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--fg);
+      padding: 2rem 1.25rem 4rem;
     }
-    h1 { margin-bottom: .25rem; }
-    .sub { opacity: .7; margin-top: 0; }
-    code, pre {
-      background: rgba(127,127,127,.12); padding: .15em .4em;
-      border-radius: 4px; font-size: .92em;
+    .wrap { max-width: 1100px; margin: 0 auto; }
+    .top {
+      display:flex; align-items:flex-start; justify-content:space-between;
+      flex-wrap:wrap; gap:1rem;
     }
-    pre { padding: .9rem 1rem; overflow-x: auto; }
+    h1 { margin:0; font-size:1.8rem; letter-spacing:-.02em; }
+    .sub { color: var(--muted); margin: .25rem 0 0; }
+    .rss {
+      font-size:.85rem; padding:.4rem .85rem; border-radius:999px;
+      border:1px solid var(--line); text-decoration:none; color:var(--fg);
+      background: var(--card);
+    }
+    .lede { margin: 1.25rem 0 0; max-width: 60ch; color: var(--fg); }
+
+    .stats {
+      display:grid; gap:1rem;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      margin: 2rem 0 2.5rem;
+    }
+    .stat {
+      background: var(--card); border:1px solid var(--line);
+      border-radius:14px; padding:1.1rem 1.25rem;
+      box-shadow: 0 1px 0 rgba(15,23,42,.02);
+    }
+    .stat .num {
+      font-size: 2.6rem; font-weight: 800; line-height:1;
+      letter-spacing:-.03em; font-variant-numeric: tabular-nums;
+    }
+    .stat .label {
+      margin-top:.4rem; font-size:.78rem; color: var(--muted);
+      text-transform: uppercase; letter-spacing:.08em; font-weight:600;
+    }
+    .stat.good .num, .stat.good .label { color: var(--good); }
+    .stat.bad  .num, .stat.bad  .label { color: var(--bad);  }
+    .stat.ugly .num, .stat.ugly .label { color: var(--ugly); }
+
+    .group { margin: 2.75rem 0 0; }
+    .group-head {
+      display:flex; align-items:baseline; gap:.85rem; flex-wrap:wrap;
+      padding-bottom:.65rem; margin-bottom:1.1rem;
+      border-bottom: 2px solid var(--line);
+    }
+    .group-head h2 {
+      margin:0; display:flex; align-items:baseline; gap:.7rem;
+      font-size:1.1rem; font-weight:600;
+    }
+    .group-name {
+      display:inline-block; font-size:1.4rem; font-weight:800;
+      padding:.2rem .85rem; border-radius:10px; color:#fff;
+      letter-spacing:.02em; text-transform:uppercase;
+      box-shadow: 0 2px 6px rgba(15,23,42,.15);
+    }
+    .group-good .group-name { background: var(--good); }
+    .group-bad  .group-name { background: var(--bad);  }
+    .group-ugly .group-name { background: var(--ugly); }
+    .count { color: var(--muted); font-weight:500; font-size:.95rem; }
+    .group-blurb {
+      color: var(--muted); margin:0; font-size:.9rem; flex:1 1 100%;
+    }
+
+    .cards {
+      display:grid; gap:1rem;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    }
+    .card {
+      background: var(--card); border:1px solid var(--line);
+      border-left:4px solid var(--line);
+      border-radius:12px; padding:1rem 1.1rem;
+      display:flex; flex-direction:column;
+    }
+    .cat-good { border-left-color: var(--good); }
+    .cat-bad  { border-left-color: var(--bad);  }
+    .cat-ugly { border-left-color: var(--ugly); }
+    .card header {
+      display:flex; align-items:center; gap:.5rem; flex-wrap:wrap;
+      margin-bottom:.5rem;
+    }
     .badge {
-      display: inline-block; padding: .15rem .55rem; border-radius: 999px;
-      font-size: .8rem; background: #1f6feb22; color: #1f6feb;
+      font-size:.7rem; font-weight:700; padding:.18rem .55rem;
+      border-radius:999px; text-transform:uppercase; letter-spacing:.06em;
+      color:#fff;
     }
-    a.button {
-      display: inline-block; margin-top: .5rem; padding: .55rem 1rem;
-      border: 1px solid currentColor; border-radius: 8px; text-decoration: none;
+    .cat-good .badge { background: var(--good); }
+    .cat-bad  .badge { background: var(--bad);  }
+    .cat-ugly .badge { background: var(--ugly); }
+    .ticker {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-weight:700; font-size:.85rem;
+      padding:.15rem .5rem; border-radius:6px;
+      background: var(--chip);
     }
+    .card time {
+      margin-left:auto; color: var(--muted); font-size:.78rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .card h3 {
+      margin:.15rem 0 .55rem; font-size:1.05rem; line-height:1.35;
+    }
+    .desc { margin: 0 0 .65rem; }
+    .why {
+      margin: 0 0 .55rem; padding:.55rem .75rem;
+      background: var(--chip); border-radius:8px; font-size:.92rem;
+    }
+    .src {
+      margin-top:auto; font-size:.85rem; color:var(--fg);
+      text-decoration:none; border-bottom:1px dashed var(--muted);
+      align-self:flex-start;
+    }
+    .src:hover { border-bottom-style:solid; }
+
+    .empty {
+      background: var(--card); border:1px dashed var(--line);
+      padding:2rem; border-radius:12px; text-align:center;
+      color: var(--muted);
+    }
+    footer.foot {
+      text-align:center; color: var(--muted);
+      margin-top:3rem; font-size:.85rem;
+    }
+    footer.foot a { color: var(--muted); }
   </style>
 </head>
 <body>
-  <span class="badge">RSS feed</span>
-  <h1>Bangladesh Capital &amp; Money Markets &mdash; Daily Pulse</h1>
-  <p class="sub">
-    AI-curated <strong>Good / Bad / Ugly</strong> assessment of DSE corporate
-    disclosures and Bangladesh financial news, refreshed every morning.
-  </p>
+  <div class="wrap">
+    <div class="top">
+      <div>
+        <h1>Bangladesh Capital &amp; Money Markets — Daily Pulse</h1>
+        <p class="sub">Last updated: 2026-05-11 10:07 UTC</p>
+      </div>
+      <a class="rss" href="feed.xml">RSS feed</a>
+    </div>
+    <p class="lede">AI-curated daily Good / Bad / Ugly assessment of developments in the Dhaka Stock Exchange and the broader Bangladesh money markets.</p>
 
-  <a class="button" href="feed.xml">Subscribe via RSS</a>
+    <div class="stats">
+      <div class="stat total"><div class="num">18</div><div class="label">Total updates</div></div>
+      <div class="stat good"><div class="num">9</div><div class="label">Good</div></div>
+      <div class="stat bad"><div class="num">5</div><div class="label">Bad</div></div>
+      <div class="stat ugly"><div class="num">4</div><div class="label">Ugly</div></div>
+    </div>
 
-  <h2>Use the feed on your site</h2>
-  <p>Drop the URL below into any RSS widget (e.g.
-  <code>rss-parser</code>, <code>feed.js</code>, WordPress RSS block,
-  Notion embeds):</p>
-  <pre id="url"></pre>
+    <section class="group group-good">  <header class="group-head">    <h2><span class="group-name">Good</span>        <span class="count">9 items</span></h2>    <p class="group-blurb">High dividends, structural reforms, strong earnings.</p>  </header>  <div class="cards"><article class="card cat-good"><header><span class="badge">Good</span><time>2026-05-11</time></header><h3>BSEC Mandates Appointment of Female Independent Directors for Listed Companies</h3><p class="desc">The Bangladesh Securities and Exchange Commission has set a deadline for listed companies to appoint female independent directors, aiming to enhance corporate governance and board diversity.</p><p class="why"><strong>Why this matters:</strong> The Bangladesh Securities and Exchange Commission has set a deadline for listed companies to appoint female independent directors, aiming to enhance corporate governance and board diversity.</p></article>
+<article class="card cat-good"><header><span class="badge">Good</span><time>2026-05-11</time></header><h3>Returns on Foreign Exchange Reserve Investments Reach Six-Year High</h3><p class="desc">The Bangladesh Bank is achieving its highest returns on foreign exchange reserve investments in six years, boosting national financial strength.</p><p class="why"><strong>Why this matters:</strong> The Bangladesh Bank is achieving its highest returns on foreign exchange reserve investments in six years, boosting national financial strength.</p></article>
+<article class="card cat-good"><header><span class="badge">Good</span><time>2026-05-11</time></header><h3>Remittance Inflows Exceed Previous Fiscal Year&#x27;s Total Ahead of Schedule</h3><p class="desc">Remittance inflows have already surpassed the total for the last fiscal year with 1.5 months remaining, providing crucial support to the economy and foreign exchange reserves.</p><p class="why"><strong>Why this matters:</strong> Remittance inflows have already surpassed the total for the last fiscal year with 1.5 months remaining, providing crucial support to the economy and foreign exchange reserves.</p></article>
+<article class="card cat-good"><header><span class="badge">Good</span><time>2026-05-11</time></header><h3>Major Megaproject Valued at BDT 334.75 Billion Awaits Approval</h3><p class="desc">A substantial megaproject is poised for ECNEC endorsement, indicating significant potential for economic stimulus and development.</p><p class="why"><strong>Why this matters:</strong> A substantial megaproject is poised for ECNEC endorsement, indicating significant potential for economic stimulus and development.</p></article>
+<article class="card cat-good"><header><span class="badge">Good</span><time>2026-05-11</time></header><h3>RAK Ceramics Managing Director Plans Significant Share Purchase</h3><p class="desc">The Managing Director and sponsor shareholder of RAK Ceramics (Bangladesh) Limited intends to purchase 300,000 shares, signaling strong insider confidence in the company&#x27;s prospects.</p><p class="why"><strong>Why this matters:</strong> The Managing Director and sponsor shareholder of RAK Ceramics (Bangladesh) Limited intends to purchase 300,000 shares, signaling strong insider confidence in the company&#x27;s prospects.</p></article>
+<article class="card cat-good"><header><span class="badge">Good</span><time>2026-05-11</time></header><h3>Renwick Jajneswar Increases Authorized Capital</h3><p class="desc">Renwick Jajneswar has increased its authorized capital to BDT 50 crore, signaling potential future expansion or capital raising initiatives.</p><p class="why"><strong>Why this matters:</strong> Renwick Jajneswar has increased its authorized capital to BDT 50 crore, signaling potential future expansion or capital raising initiatives.</p></article>
+<article class="card cat-good"><header><span class="badge">Good</span><time>2026-05-11</time></header><h3>Saiham Textile Mills to Modernize Spinning Unit for Enhanced Capacity</h3><p class="desc">Saiham Textile Mills will temporarily suspend its old spinning unit for Balancing, Modernization, Rehabilitation, and Expansion (BMRE) to install new machinery, aiming for significantly increased production capacity and profitability.</p><p class="why"><strong>Why this matters:</strong> Saiham Textile Mills will temporarily suspend its old spinning unit for Balancing, Modernization, Rehabilitation, and Expansion (BMRE) to install new machinery, aiming for significantly increased production capacity and profitability.</p></article>
+<article class="card cat-good"><header><span class="badge">Good</span><time>2026-05-11</time></header><h3>BNICL Reports Strong Q1 Earnings Growth</h3><p class="desc">Bangladesh National Insurance Company Limited (BNICL) saw its Earnings Per Share (EPS) increase significantly from Tk. 1.06 to Tk. 1.61 in the first quarter of 2026.</p><p class="why"><strong>Why this matters:</strong> Bangladesh National Insurance Company Limited (BNICL) saw its Earnings Per Share (EPS) increase significantly from Tk. 1.06 to Tk. 1.61 in the first quarter of 2026.</p></article>
+<article class="card cat-good"><header><span class="badge">Good</span><time>2026-05-11</time></header><h3>DBH Recommends 15% Cash Dividend</h3><p class="desc">The company&#x27;s board of directors proposed a 15% cash dividend for the fiscal year ending December 31, 2025, indicating a return to shareholders.</p><p class="why"><strong>Why this matters:</strong> The company&#x27;s board of directors proposed a 15% cash dividend for the fiscal year ending December 31, 2025, indicating a return to shareholders.</p></article></div></section>
+<section class="group group-bad">  <header class="group-head">    <h2><span class="group-name">Bad</span>        <span class="count">5 items</span></h2>    <p class="group-blurb">Inflation, weak earnings, index drops, regulatory hits.</p>  </header>  <div class="cards"><article class="card cat-bad"><header><span class="badge">Bad</span><time>2026-05-11</time></header><h3>Bangladesh&#x27;s Forex Reserves Decline Following Large ACU Payment</h3><p class="desc">The nation&#x27;s foreign exchange reserves decreased by $1.51 billion after a payment to the Asian Clearing Union (ACU), highlighting ongoing pressure on external balances.</p><p class="why"><strong>Why this matters:</strong> The nation&#x27;s foreign exchange reserves decreased by $1.51 billion after a payment to the Asian Clearing Union (ACU), highlighting ongoing pressure on external balances.</p></article>
+<article class="card cat-bad"><header><span class="badge">Bad</span><time>2026-05-11</time></header><h3>Apex Tannery Reports Worsening Losses and Negative Cash Flow</h3><p class="desc">Apex Tannery&#x27;s Q3 financials show an increased net loss and negative operating cash flow, driven by reduced sales volume and significantly higher finance expenses.</p><p class="why"><strong>Why this matters:</strong> Apex Tannery&#x27;s Q3 financials show an increased net loss and negative operating cash flow, driven by reduced sales volume and significantly higher finance expenses.</p></article>
+<article class="card cat-bad"><header><span class="badge">Bad</span><time>2026-05-11</time></header><h3>IPDC Experiences Sharp Decline in Q1 Operating Cash Flow</h3><p class="desc">IPDC&#x27;s Net Operating Cash Flow Per Share (NOCFPS) significantly decreased in Q1 2026, primarily due to a substantial reduction in customer deposit inflows compared to the previous year.</p><p class="why"><strong>Why this matters:</strong> IPDC&#x27;s Net Operating Cash Flow Per Share (NOCFPS) significantly decreased in Q1 2026, primarily due to a substantial reduction in customer deposit inflows compared to the previous year.</p></article>
+<article class="card cat-bad"><header><span class="badge">Bad</span><time>2026-05-11</time></header><h3>DBH Faces Significant Operating Cash Outflow in Q1</h3><p class="desc">Despite an increase in EPS, DBH&#x27;s Net Operating Cash Flow Per Share (NOCFPS) turned negative in Q1 2026 due to a substantial reversal in deposit funding, with repayments exceeding new deposits.</p><p class="why"><strong>Why this matters:</strong> Despite an increase in EPS, DBH&#x27;s Net Operating Cash Flow Per Share (NOCFPS) turned negative in Q1 2026 due to a substantial reversal in deposit funding, with repayments exceeding new deposits.</p></article>
+<article class="card cat-bad"><header><span class="badge">Bad</span><time>2026-05-11</time></header><h3>Agrani Insurance Reports Significant Q1 Earnings Decline</h3><p class="desc">Agrani Insurance Company Limited experienced a sharp drop in consolidated EPS from Tk. 0.33 to Tk. 0.17 in Q1 2026, primarily due to lower premium income and increased management expenses.</p><p class="why"><strong>Why this matters:</strong> Agrani Insurance Company Limited experienced a sharp drop in consolidated EPS from Tk. 0.33 to Tk. 0.17 in Q1 2026, primarily due to lower premium income and increased management expenses.</p></article></div></section>
+<section class="group group-ugly">  <header class="group-head">    <h2><span class="group-name">Ugly</span>        <span class="count">4 items</span></h2>    <p class="group-blurb">Systemic shocks: bank failures, energy crises, defaults.</p>  </header>  <div class="cards"><article class="card cat-ugly"><header><span class="badge">Ugly</span><time>2026-05-11</time></header><h3>Brokers Advocate for Removal of Floor Price Amidst Worsening Market Stagnation</h3><p class="desc">Stockbrokers are pressing the BSEC to abolish the floor price mechanism, citing its contribution to deepening market gridlock and hindering liquidity.</p><p class="why"><strong>Why this matters:</strong> Stockbrokers are pressing the BSEC to abolish the floor price mechanism, citing its contribution to deepening market gridlock and hindering liquidity.</p></article>
+<article class="card cat-ugly"><header><span class="badge">Ugly</span><time>2026-05-11</time></header><h3>BSEC Imposes Hefty Fine on Vanguard Asset for Persistent Regulatory Breaches</h3><p class="desc">The Bangladesh Securities and Exchange Commission (BSEC) levied a BDT 227.5 million fine on Vanguard Asset Management for repeated violations of securities laws, underscoring severe regulatory non-compliance.</p><p class="why"><strong>Why this matters:</strong> The Bangladesh Securities and Exchange Commission (BSEC) levied a BDT 227.5 million fine on Vanguard Asset Management for repeated violations of securities laws, underscoring severe regulatory non-compliance.</p></article>
+<article class="card cat-ugly"><header><span class="badge">Ugly</span><time>2026-05-11</time></header><h3>Speculative Trading Drives Gains in Weak Companies, Raising Market Concerns</h3><p class="desc">The stock market is seeing gains led by fundamentally weak companies, fueled by speculative trading, which suggests an unhealthy market trend.</p><p class="why"><strong>Why this matters:</strong> The stock market is seeing gains led by fundamentally weak companies, fueled by speculative trading, which suggests an unhealthy market trend.</p></article>
+<article class="card cat-ugly"><header><span class="badge">Ugly</span><time>2026-05-11</time></header><h3>DSE Revokes Sonali Securities&#x27; Trading License</h3><p class="desc">The Dhaka Stock Exchange canceled the Trading Right Entitlement Certificate (TREC) of Sonali Securities Limited due to a violation of regulatory rules.</p><p class="why"><strong>Why this matters:</strong> The Dhaka Stock Exchange canceled the Trading Right Entitlement Certificate (TREC) of Sonali Securities Limited due to a violation of regulatory rules.</p></article></div></section>
 
-  <script>
-    document.getElementById("url").textContent =
-      new URL("feed.xml", location.href).toString();
-  </script>
+    <footer class="foot">
+      Generated automatically &middot; <a href="feed.xml">RSS</a> &middot;
+      <a href="https://github.com/alaminmain/BdCapitalMarketNews">Source on GitHub</a>
+    </footer>
+  </div>
 </body>
 </html>

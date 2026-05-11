@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parent.parent
 DOCS_DIR = ROOT / "docs"
 DB_PATH = ROOT / "market_updates.db"
 FEED_PATH = DOCS_DIR / "feed.xml"
+HTML_PATH = DOCS_DIR / "index.html"
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 # Default to a Flash model so the project works on Google AI Studio's free
