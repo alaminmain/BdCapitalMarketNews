@@ -46,17 +46,29 @@ def write_feed(items: List[Dict[str, str]], output_path: Path) -> Path:
         category = row.get("category", "")
         tag = CATEGORY_EMOJI.get(category, "")
         title = f"{tag} {row.get('summary', '').strip()}".strip()
-        body = (
-            f"<p><strong>Category:</strong> {category}</p>"
-            f"<p><strong>Reason:</strong> {row.get('reason', '')}</p>"
-            f"<p><em>Recorded: {row.get('date', '')}</em></p>"
-        )
+
+        description = (row.get("description") or row.get("reason") or "").strip()
+        source_url = (row.get("source_url") or "").strip()
+        item_link = source_url or FEED_LINK
+
+        body_parts = [
+            f"<p><strong>Category:</strong> {category}</p>",
+            f"<p>{description}</p>",
+            f"<p><strong>Why this matters:</strong> {row.get('reason', '')}</p>",
+        ]
+        if source_url:
+            body_parts.append(
+                f'<p><a href="{source_url}">Read original source</a></p>'
+            )
+        body_parts.append(f"<p><em>Recorded: {row.get('date', '')}</em></p>")
+        body = "".join(body_parts)
+
         fe = fg.add_entry()
         guid = f"bd-markets-{row.get('id', row.get('date', ''))}-{row.get('date', '')}"
         fe.id(guid)
         fe.guid(guid, permalink=False)
         fe.title(title[:300] or "Market Update")
-        fe.link(href=FEED_LINK)
+        fe.link(href=item_link)
         fe.description(body)
         fe.category({"term": category})
         fe.pubDate(_parse_pub_date(row))

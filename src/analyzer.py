@@ -37,10 +37,19 @@ def _build_prompt(headlines: List[Dict[str, str]]) -> str:
     return (
         "Analyze the following Bangladesh capital and money market headlines "
         "scraped today. Select only the materially significant items. "
-        "Write summaries in your own words (do not copy headline text "
+        "Write everything in your own words (do not copy headline text "
         "verbatim) so the output is suitable for redistribution.\n\n"
         f"HEADLINES:\n{body}\n\n"
-        "Return ONLY a JSON array. No prose, no markdown fences."
+        "Return ONLY a JSON array. Each object MUST contain these keys:\n"
+        "  source_id   : integer matching the headline number above\n"
+        "  category    : exactly one of \"Good\", \"Bad\", or \"Ugly\"\n"
+        "  summary     : a short headline-style line, under 120 characters\n"
+        "  description : 2-3 sentences in plain, easy-to-read English a "
+        "                non-expert investor can follow. Spell out\n"
+        "                acronyms (e.g. EPS, NOCFPS, BSEC) on first use\n"
+        "                and explain *what happened* and *why it matters*\n"
+        "  reason      : one short sentence justifying the category choice\n"
+        "No prose, no markdown fences."
     )
 
 
@@ -63,17 +72,37 @@ def _extract_json_array(text: str) -> List[Dict]:
     return parsed if isinstance(parsed, list) else []
 
 
-def _normalize(items: List[Dict]) -> List[Dict[str, str]]:
+def _normalize(
+    items: List[Dict], headlines: List[Dict[str, str]]
+) -> List[Dict[str, str]]:
     out: List[Dict[str, str]] = []
     for item in items:
         if not isinstance(item, dict):
             continue
         category = str(item.get("category", "")).strip().capitalize()
         summary = str(item.get("summary", "")).strip()
+        description = str(item.get("description", "")).strip()
         reason = str(item.get("reason", "")).strip()
         if category not in ALLOWED_CATEGORIES or not summary or not reason:
             continue
-        out.append({"category": category, "summary": summary, "reason": reason})
+
+        source_url = ""
+        try:
+            sid = int(item.get("source_id", 0)) - 1
+            if 0 <= sid < len(headlines):
+                source_url = headlines[sid].get("url", "")
+        except (TypeError, ValueError):
+            pass
+
+        out.append(
+            {
+                "category": category,
+                "summary": summary,
+                "description": description or reason,
+                "reason": reason,
+                "source_url": source_url,
+            }
+        )
     return out
 
 
@@ -104,6 +133,6 @@ def analyze_headlines(headlines: List[Dict[str, str]]) -> List[Dict[str, str]]:
 
     raw = getattr(response, "text", "") or ""
     parsed = _extract_json_array(raw)
-    classified = _normalize(parsed)
+    classified = _normalize(parsed, headlines)
     log.info("Gemini returned %d valid classified items", len(classified))
     return classified
