@@ -14,10 +14,54 @@ from .config import FEED_DESCRIPTION, FEED_TITLE
 log = logging.getLogger(__name__)
 
 CATEGORY_ORDER = ("Good", "Bad", "Ugly")
-CATEGORY_BLURB = {
-    "Good": "High dividends, structural reforms, strong earnings.",
-    "Bad":  "Inflation, weak earnings, index drops, regulatory hits.",
-    "Ugly": "Systemic shocks: bank failures, energy crises, defaults.",
+
+# All static UI text in both languages. Content from Gemini (summary,
+# description, reason) is bilingual per-row via the BN columns.
+UI = {
+    "en": {
+        "title":        FEED_TITLE,
+        "lede":         FEED_DESCRIPTION,
+        "last_updated": "Last updated:",
+        "rss":          "RSS feed",
+        "total":        "Total updates",
+        "Good":         "Good",
+        "Bad":          "Bad",
+        "Ugly":         "Ugly",
+        "items":        "items",
+        "item":         "item",
+        "why":          "Why this matters",
+        "source":       "Read source &rarr;",
+        "footer_gen":   "Generated automatically",
+        "footer_src":   "Source on GitHub",
+        "empty":        "No classified items yet — check back soon.",
+        "blurbs": {
+            "Good": "High dividends, structural reforms, strong earnings.",
+            "Bad":  "Inflation, weak earnings, index drops, regulatory hits.",
+            "Ugly": "Systemic shocks: bank failures, energy crises, defaults.",
+        },
+    },
+    "bn": {
+        "title":        "বাংলাদেশ পুঁজিবাজার ও মুদ্রাবাজার — দৈনিক পাল্স",
+        "lede":         "ঢাকা স্টক এক্সচেঞ্জ ও বাংলাদেশের মুদ্রাবাজারের অগ্রগতির এআই-নির্বাচিত দৈনিক ভালো / খারাপ / ভয়াবহ মূল্যায়ন।",
+        "last_updated": "সর্বশেষ আপডেট:",
+        "rss":          "RSS ফিড",
+        "total":        "মোট আপডেট",
+        "Good":         "ভালো",
+        "Bad":          "খারাপ",
+        "Ugly":         "ভয়াবহ",
+        "items":        "টি",
+        "item":         "টি",
+        "why":          "কেন এটি গুরুত্বপূর্ণ",
+        "source":       "মূল উৎস &rarr;",
+        "footer_gen":   "স্বয়ংক্রিয়ভাবে তৈরি",
+        "footer_src":   "GitHub-এ সোর্স",
+        "empty":        "এখনও কোনো শ্রেণিবদ্ধ আইটেম নেই — শীঘ্রই আবার দেখুন।",
+        "blurbs": {
+            "Good": "উচ্চ লভ্যাংশ, কাঠামোগত সংস্কার, শক্তিশালী আয়।",
+            "Bad":  "মূল্যস্ফীতি, দুর্বল আয়, সূচকের পতন, নিয়ন্ত্রক আঘাত।",
+            "Ugly": "ব্যবস্থাগত সংকট: ব্যাংক ব্যর্থতা, শক্তি সংকট, খেলাপি।",
+        },
+    },
 }
 
 # DSE-style "TICKER: rest of headline". Allow short names with spaces/dots.
@@ -35,34 +79,86 @@ def _esc(s: str) -> str:
     return html.escape(s or "", quote=True)
 
 
+def _bilingual(en: str, bn: str, tag: str = "span", cls: str = "") -> str:
+    """Render the same field in both languages.
+
+    The CSS rule on `body[data-lang=...]` hides whichever language is not
+    active. If BN is missing we emit a single tag with `data-lang="any"`
+    so it stays visible in both modes (graceful degradation for the
+    pre-bilingual rows already in the DB).
+    """
+    en_clean = (en or "").strip()
+    bn_clean = (bn or "").strip()
+    cls_attr = f' class="{cls}"' if cls else ""
+    if not bn_clean:
+        return f'<{tag}{cls_attr} data-lang="any">{_esc(en_clean)}</{tag}>'
+    return (
+        f'<{tag}{cls_attr} data-lang="en">{_esc(en_clean)}</{tag}>'
+        f'<{tag}{cls_attr} data-lang="bn">{_esc(bn_clean)}</{tag}>'
+    )
+
+
+def _ui_label(key: str) -> str:
+    """Render a static UI string in both languages (inline spans)."""
+    en = UI["en"][key]
+    bn = UI["bn"][key]
+    # UI strings are already trusted (we author them); skip _esc to keep
+    # entities like &rarr; intact.
+    return (
+        f'<span data-lang="en">{en}</span>'
+        f'<span data-lang="bn">{bn}</span>'
+    )
+
+
+def _count_label(n: int) -> str:
+    """'5 items' / '5 টি' kind of bilingual count phrase."""
+    en_word = UI["en"]["item" if n == 1 else "items"]
+    bn_word = UI["bn"]["item" if n == 1 else "items"]
+    return (
+        f'<span data-lang="en">{n} {en_word}</span>'
+        f'<span data-lang="bn">{n} {bn_word}</span>'
+    )
+
+
 def _render_card(row: Dict[str, str]) -> str:
     category = row.get("category", "")
     summary = row.get("summary", "") or ""
+    summary_bn = row.get("summary_bn", "") or ""
     description = (row.get("description") or row.get("reason") or "").strip()
+    description_bn = (row.get("description_bn") or row.get("reason_bn") or "").strip()
     reason = (row.get("reason") or "").strip()
+    reason_bn = (row.get("reason_bn") or "").strip()
     source_url = (row.get("source_url") or "").strip()
     date = row.get("date", "") or ""
 
-    company, headline = _split_company(summary)
+    company, headline_en = _split_company(summary)
+    # Bengali summary may or may not carry a ticker prefix; if BN is
+    # present, use it as-is for the BN headline (the ticker is a Latin
+    # token anyway and reads fine in Bangla copy).
+    headline_bn = summary_bn
+
     company_html = (
         f'<span class="ticker" title="Company / instrument">{_esc(company)}</span>'
         if company else ""
     )
     src_html = (
         f'<a class="src" href="{_esc(source_url)}" target="_blank" '
-        f'rel="noopener">Read source &rarr;</a>'
+        f'rel="noopener">{_ui_label("source")}</a>'
         if source_url else ""
     )
     return (
         f'<article class="card cat-{category.lower()}">'
         f'<header>'
-        f'<span class="badge">{_esc(category)}</span>'
+        f'<span class="badge">{_ui_label(category)}</span>'
         f'{company_html}'
         f'<time>{_esc(date)}</time>'
         f'</header>'
-        f'<h3>{_esc(headline)}</h3>'
-        f'<p class="desc">{_esc(description)}</p>'
-        f'<p class="why"><strong>Why this matters:</strong> {_esc(reason)}</p>'
+        f'{_bilingual(headline_en, headline_bn, tag="h3")}'
+        f'{_bilingual(description, description_bn, tag="p", cls="desc")}'
+        f'<p class="why">'
+        f'<strong>{_ui_label("why")}</strong>'
+        f'{_bilingual(reason, reason_bn, tag="span", cls="why-body")}'
+        f'</p>'
         f'{src_html}'
         f'</article>'
     )
@@ -70,12 +166,14 @@ def _render_card(row: Dict[str, str]) -> str:
 
 def _render_section(category: str, rows: List[Dict[str, str]]) -> str:
     cards = "\n".join(_render_card(r) for r in rows)
+    blurb_en = UI["en"]["blurbs"][category]
+    blurb_bn = UI["bn"]["blurbs"][category]
     return (
         f'<section class="group group-{category.lower()}">'
         f'  <header class="group-head">'
-        f'    <h2><span class="group-name">{_esc(category)}</span>'
-        f'        <span class="count">{len(rows)} item{"s" if len(rows) != 1 else ""}</span></h2>'
-        f'    <p class="group-blurb">{_esc(CATEGORY_BLURB.get(category, ""))}</p>'
+        f'    <h2><span class="group-name">{_ui_label(category)}</span>'
+        f'        <span class="count">{_count_label(len(rows))}</span></h2>'
+        f'    {_bilingual(blurb_en, blurb_bn, tag="p", cls="group-blurb")}'
         f'  </header>'
         f'  <div class="cards">{cards}</div>'
         f'</section>'
@@ -99,12 +197,30 @@ def write_html(items: List[Dict[str, str]], output_path: Path) -> Path:
     if rendered_groups:
         sections = '<div class="groups">' + "\n".join(rendered_groups) + "</div>"
     else:
-        sections = '<p class="empty">No classified items yet &mdash; check back soon.</p>'
+        sections = (
+            f'<p class="empty">'
+            f'<span data-lang="en">{UI["en"]["empty"]}</span>'
+            f'<span data-lang="bn">{UI["bn"]["empty"]}</span>'
+            f'</p>'
+        )
+
+    head_title = f'{UI["en"]["title"]} | {UI["bn"]["title"]}'
 
     doc = _PAGE_TEMPLATE.format(
-        title=_esc(FEED_TITLE),
-        description=_esc(FEED_DESCRIPTION),
+        head_title=_esc(head_title),
+        title_en=_esc(UI["en"]["title"]),
+        title_bn=_esc(UI["bn"]["title"]),
+        lede_en=_esc(UI["en"]["lede"]),
+        lede_bn=_esc(UI["bn"]["lede"]),
+        last_updated_label=_ui_label("last_updated"),
         last_updated=_esc(last_updated),
+        rss_label=_ui_label("rss"),
+        total_label=_ui_label("total"),
+        good_label=_ui_label("Good"),
+        bad_label=_ui_label("Bad"),
+        ugly_label=_ui_label("Ugly"),
+        footer_gen=_ui_label("footer_gen"),
+        footer_src=_ui_label("footer_src"),
         total=total,
         good=counts.get("Good", 0),
         bad=counts.get("Bad", 0),
@@ -124,8 +240,8 @@ _PAGE_TEMPLATE = """<!doctype html>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{title}</title>
-  <link rel="alternate" type="application/rss+xml" title="{title}" href="feed.xml" />
+  <title>{head_title}</title>
+  <link rel="alternate" type="application/rss+xml" title="{title_en}" href="feed.xml" />
   <style>
     :root {{
       --good:#16a34a; --bad:#f59e0b; --ugly:#dc2626;
@@ -146,6 +262,17 @@ _PAGE_TEMPLATE = """<!doctype html>
       background: var(--bg); color: var(--fg);
       padding: 2rem 1.25rem 4rem;
     }}
+    body[data-lang="bn"] {{
+      font-family: "Noto Sans Bengali", "Hind Siliguri", "SolaimanLipi",
+                   "Kalpurush", system-ui, sans-serif;
+    }}
+
+    /* Bilingual show/hide. Elements tagged data-lang="any" stay visible
+       in both modes so DB rows that lack a Bengali translation don't
+       disappear when the user toggles to bn. */
+    body[data-lang="en"] [data-lang="bn"] {{ display: none !important; }}
+    body[data-lang="bn"] [data-lang="en"] {{ display: none !important; }}
+
     .wrap {{ max-width: 1340px; margin: 0 auto; }}
     .top {{
       display:flex; align-items:flex-start; justify-content:space-between;
@@ -153,6 +280,22 @@ _PAGE_TEMPLATE = """<!doctype html>
     }}
     h1 {{ margin:0; font-size:1.8rem; letter-spacing:-.02em; }}
     .sub {{ color: var(--muted); margin: .25rem 0 0; }}
+    .top-actions {{ display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; }}
+
+    .lang-switch {{
+      display:inline-flex; border:1px solid var(--line); border-radius:999px;
+      overflow:hidden; background: var(--card);
+    }}
+    .lang-switch button {{
+      background: transparent; color: var(--fg); border:0;
+      padding:.4rem .8rem; font: inherit; font-size:.82rem;
+      cursor:pointer; line-height:1;
+    }}
+    body[data-lang="en"] .lang-switch [data-set-lang="en"],
+    body[data-lang="bn"] .lang-switch [data-set-lang="bn"] {{
+      background: var(--fg); color: var(--bg); font-weight:700;
+    }}
+
     .rss {{
       font-size:.85rem; padding:.4rem .85rem; border-radius:999px;
       border:1px solid var(--line); text-decoration:none; color:var(--fg);
@@ -295,31 +438,56 @@ _PAGE_TEMPLATE = """<!doctype html>
     footer.foot a {{ color: var(--muted); }}
   </style>
 </head>
-<body>
+<body data-lang="en">
   <div class="wrap">
     <div class="top">
       <div>
-        <h1>{title}</h1>
-        <p class="sub">Last updated: {last_updated}</p>
+        <h1><span data-lang="en">{title_en}</span><span data-lang="bn">{title_bn}</span></h1>
+        <p class="sub">{last_updated_label} {last_updated}</p>
       </div>
-      <a class="rss" href="feed.xml">RSS feed</a>
+      <div class="top-actions">
+        <div class="lang-switch" role="group" aria-label="Language">
+          <button type="button" data-set-lang="en">EN</button>
+          <button type="button" data-set-lang="bn">বাং</button>
+        </div>
+        <a class="rss" href="feed.xml">{rss_label}</a>
+      </div>
     </div>
-    <p class="lede">{description}</p>
+    <p class="lede"><span data-lang="en">{lede_en}</span><span data-lang="bn">{lede_bn}</span></p>
 
     <div class="stats">
-      <div class="stat total"><div class="num">{total}</div><div class="label">Total updates</div></div>
-      <div class="stat good"><div class="num">{good}</div><div class="label">Good</div></div>
-      <div class="stat bad"><div class="num">{bad}</div><div class="label">Bad</div></div>
-      <div class="stat ugly"><div class="num">{ugly}</div><div class="label">Ugly</div></div>
+      <div class="stat total"><div class="num">{total}</div><div class="label">{total_label}</div></div>
+      <div class="stat good"><div class="num">{good}</div><div class="label">{good_label}</div></div>
+      <div class="stat bad"><div class="num">{bad}</div><div class="label">{bad_label}</div></div>
+      <div class="stat ugly"><div class="num">{ugly}</div><div class="label">{ugly_label}</div></div>
     </div>
 
     {sections}
 
     <footer class="foot">
-      Generated automatically &middot; <a href="feed.xml">RSS</a> &middot;
-      <a href="https://github.com/alaminmain/BdCapitalMarketNews">Source on GitHub</a>
+      {footer_gen} &middot; <a href="feed.xml">RSS</a> &middot;
+      <a href="https://github.com/alaminmain/BdCapitalMarketNews">{footer_src}</a>
     </footer>
   </div>
+  <script>
+    (function() {{
+      var KEY = 'bd-pulse-lang';
+      var saved = null;
+      try {{ saved = localStorage.getItem(KEY); }} catch (e) {{}}
+      var initial = saved
+        || ((navigator.language || '').toLowerCase().indexOf('bn') === 0 ? 'bn' : 'en');
+      document.body.dataset.lang = initial;
+      document.documentElement.lang = initial;
+      document.addEventListener('click', function(e) {{
+        var btn = e.target.closest && e.target.closest('[data-set-lang]');
+        if (!btn) return;
+        var l = btn.dataset.setLang;
+        document.body.dataset.lang = l;
+        document.documentElement.lang = l;
+        try {{ localStorage.setItem(KEY, l); }} catch (e) {{}}
+      }});
+    }})();
+  </script>
 </body>
 </html>
 """

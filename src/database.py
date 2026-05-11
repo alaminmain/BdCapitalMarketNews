@@ -13,15 +13,18 @@ log = logging.getLogger(__name__)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS market_updates (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    date        TEXT    NOT NULL,
-    category    TEXT    NOT NULL CHECK (category IN ('Good','Bad','Ugly')),
-    summary     TEXT    NOT NULL,
-    description TEXT,
-    reason      TEXT    NOT NULL,
-    source_url  TEXT,
-    hash        TEXT    NOT NULL UNIQUE,
-    created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    date           TEXT    NOT NULL,
+    category       TEXT    NOT NULL CHECK (category IN ('Good','Bad','Ugly')),
+    summary        TEXT    NOT NULL,
+    summary_bn     TEXT,
+    description    TEXT,
+    description_bn TEXT,
+    reason         TEXT    NOT NULL,
+    reason_bn      TEXT,
+    source_url     TEXT,
+    hash           TEXT    NOT NULL UNIQUE,
+    created_at     TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_market_updates_date ON market_updates(date);
 CREATE INDEX IF NOT EXISTS idx_market_updates_category ON market_updates(category);
@@ -39,6 +42,9 @@ CREATE TABLE IF NOT EXISTS seen_headlines (
 _MIGRATIONS = (
     "ALTER TABLE market_updates ADD COLUMN description TEXT",
     "ALTER TABLE market_updates ADD COLUMN source_url TEXT",
+    "ALTER TABLE market_updates ADD COLUMN summary_bn TEXT",
+    "ALTER TABLE market_updates ADD COLUMN description_bn TEXT",
+    "ALTER TABLE market_updates ADD COLUMN reason_bn TEXT",
 )
 
 
@@ -80,15 +86,18 @@ def insert_updates(
             try:
                 conn.execute(
                     "INSERT INTO market_updates "
-                    "(date, category, summary, description, reason, "
-                    " source_url, hash) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    "(date, category, summary, summary_bn, description, "
+                    " description_bn, reason, reason_bn, source_url, hash) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         today,
                         item["category"],
                         item["summary"],
+                        item.get("summary_bn", ""),
                         item.get("description", ""),
+                        item.get("description_bn", ""),
                         item["reason"],
+                        item.get("reason_bn", ""),
                         item.get("source_url", ""),
                         digest,
                     ),
@@ -162,8 +171,8 @@ def reset_today_seen(db_path: Path) -> int:
 def fetch_latest(db_path: Path, limit: int = 50) -> List[Dict[str, str]]:
     with _connect(db_path) as conn:
         rows = conn.execute(
-            "SELECT id, date, category, summary, description, reason, "
-            "       source_url, created_at "
+            "SELECT id, date, category, summary, summary_bn, description, "
+            "       description_bn, reason, reason_bn, source_url, created_at "
             "FROM market_updates ORDER BY id DESC LIMIT ?",
             (limit,),
         ).fetchall()

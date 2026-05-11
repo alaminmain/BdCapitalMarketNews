@@ -43,15 +43,22 @@ def _build_prompt(headlines: List[Dict[str, str]]) -> str:
         "verbatim) so the output is suitable for redistribution.\n\n"
         f"HEADLINES:\n{body}\n\n"
         "Return ONLY a JSON array. Each object MUST contain these keys:\n"
-        "  source_id   : integer matching the headline number above\n"
-        "  category    : exactly one of \"Good\", \"Bad\", or \"Ugly\"\n"
-        "  summary     : a short headline-style line, under 120 characters\n"
-        "  description : 2-3 sentences in plain, easy-to-read English a "
-        "                non-expert investor can follow. Spell out\n"
-        "                acronyms (e.g. EPS, NOCFPS, BSEC) on first use\n"
-        "                and explain *what happened* and *why it matters*\n"
-        "  reason      : one short sentence justifying the category choice\n"
-        "No prose, no markdown fences."
+        "  source_id      : integer matching the headline number above\n"
+        "  category       : exactly one of \"Good\", \"Bad\", or \"Ugly\"\n"
+        "  summary        : short English headline-style line, under 120 chars\n"
+        "  summary_bn     : the same headline rewritten in fluent natural\n"
+        "                   Bengali (Bangla) for a Bangladeshi reader\n"
+        "  description    : 2-3 sentences in plain, easy-to-read English a "
+        "                   non-expert investor can follow. Spell out\n"
+        "                   acronyms (e.g. EPS, NOCFPS, BSEC) on first use\n"
+        "                   and explain *what happened* and *why it matters*\n"
+        "  description_bn : the same description in fluent natural Bengali\n"
+        "                   (Bangla). Use widely-understood vocabulary;\n"
+        "                   transliterate technical terms (BSEC, EPS, NOCFPS)\n"
+        "                   when no clean Bengali equivalent exists\n"
+        "  reason         : one short English sentence justifying the category\n"
+        "  reason_bn      : the same reason translated into Bengali (Bangla)\n"
+        "Bengali fields MUST be present and non-empty. No prose, no markdown fences."
     )
 
 
@@ -83,8 +90,11 @@ def _normalize(
             continue
         category = str(item.get("category", "")).strip().capitalize()
         summary = str(item.get("summary", "")).strip()
+        summary_bn = str(item.get("summary_bn", "")).strip()
         description = str(item.get("description", "")).strip()
+        description_bn = str(item.get("description_bn", "")).strip()
         reason = str(item.get("reason", "")).strip()
+        reason_bn = str(item.get("reason_bn", "")).strip()
         if category not in ALLOWED_CATEGORIES or not summary or not reason:
             continue
 
@@ -100,8 +110,11 @@ def _normalize(
             {
                 "category": category,
                 "summary": summary,
+                "summary_bn": summary_bn,
                 "description": description or reason,
+                "description_bn": description_bn,
                 "reason": reason,
+                "reason_bn": reason_bn,
                 "source_url": source_url,
             }
         )
