@@ -95,6 +95,11 @@ jobs:
     needs: refresh
     if: needs.refresh.outputs.changes == 'true'
     runs-on: ubuntu-latest
+    # Share the Pages deploy slot with deploy-pages.yml so cron and a
+    # human-merged source PR never race each other.
+    concurrency:
+      group: pages-deploy
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
