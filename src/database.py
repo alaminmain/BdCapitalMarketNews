@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import sqlite3
 from contextlib import contextmanager
@@ -23,6 +24,7 @@ CREATE TABLE IF NOT EXISTS market_updates (
     reason         TEXT    NOT NULL,
     reason_bn      TEXT,
     source_url     TEXT,
+    tags           TEXT,
     hash           TEXT    NOT NULL UNIQUE,
     created_at     TEXT    NOT NULL DEFAULT (datetime('now'))
 );
@@ -45,6 +47,7 @@ _MIGRATIONS = (
     "ALTER TABLE market_updates ADD COLUMN summary_bn TEXT",
     "ALTER TABLE market_updates ADD COLUMN description_bn TEXT",
     "ALTER TABLE market_updates ADD COLUMN reason_bn TEXT",
+    "ALTER TABLE market_updates ADD COLUMN tags TEXT",
 )
 
 
@@ -83,12 +86,13 @@ def insert_updates(
     with _connect(db_path) as conn:
         for item in items:
             digest = _hash_item(today, item["summary"])
+            tags_json = json.dumps(item.get("tags") or [], ensure_ascii=False)
             try:
                 conn.execute(
                     "INSERT INTO market_updates "
                     "(date, category, summary, summary_bn, description, "
-                    " description_bn, reason, reason_bn, source_url, hash) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    " description_bn, reason, reason_bn, source_url, tags, hash) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         today,
                         item["category"],
@@ -99,6 +103,7 @@ def insert_updates(
                         item["reason"],
                         item.get("reason_bn", ""),
                         item.get("source_url", ""),
+                        tags_json,
                         digest,
                     ),
                 )
@@ -168,12 +173,40 @@ def reset_today_seen(db_path: Path) -> int:
     return deleted
 
 
+def _row_to_dict(row: sqlite3.Row) -> Dict:
+    """Convert a sqlite3.Row into a dict, decoding the tags JSON blob."""
+    d = dict(row)
+    raw = d.get("tags")
+    if raw:
+        try:
+            decoded = json.loads(raw)
+            d["tags"] = decoded if isinstance(decoded, list) else []
+        except (json.JSONDecodeError, TypeError):
+            d["tags"] = []
+    else:
+        d["tags"] = []
+    return d
+
+
 def fetch_latest(db_path: Path, limit: int = 50) -> List[Dict[str, str]]:
     with _connect(db_path) as conn:
         rows = conn.execute(
             "SELECT id, date, category, summary, summary_bn, description, "
-            "       description_bn, reason, reason_bn, source_url, created_at "
+            "       description_bn, reason, reason_bn, source_url, tags, "
+            "       created_at "
             "FROM market_updates ORDER BY id DESC LIMIT ?",
             (limit,),
         ).fetchall()
-    return [dict(r) for r in rows]
+    return [_row_to_dict(r) for r in rows]
+
+
+def fetch_all(db_path: Path) -> List[Dict[str, str]]:
+    """Return every row in the DB. Used to bake history.json for the page."""
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT id, date, category, summary, summary_bn, description, "
+            "       description_bn, reason, reason_bn, source_url, tags, "
+            "       created_at "
+            "FROM market_updates ORDER BY date DESC, id DESC"
+        ).fetchall()
+    return [_row_to_dict(r) for r in rows]

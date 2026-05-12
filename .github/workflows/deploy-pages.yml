@@ -1,0 +1,40 @@
+name: Deploy Pages on main
+
+# Fires when a *human* (or any non-GITHUB_TOKEN actor) lands a commit on
+# main that touches docs/. The daily cron path keeps its own deploy step
+# inside daily-scrape.yml because GITHUB_TOKEN-driven merges do not
+# trigger on:push workflows.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Serialize with the cron's deploy step so two runs never race the
+# Pages deployment slot.
+concurrency:
+  group: pages-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - id: deployment
+        uses: actions/deploy-pages@v4
