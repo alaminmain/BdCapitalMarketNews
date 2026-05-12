@@ -51,10 +51,22 @@ jobs:
           git add docs/feed.xml docs/index.html market_updates.db
           if git diff --cached --quiet; then
             echo "No changes to commit."
-          else
-            git commit -m "chore(data): daily refresh $(date -u +%Y-%m-%d)"
-            git push
+            exit 0
           fi
+          git commit -m "chore(data): daily refresh $(date -u +%Y-%m-%d)"
+          # Push with rebase-on-reject. The committed files (market_updates.db,
+          # docs/feed.xml, docs/index.html) are regenerated wholesale each run,
+          # so "ours" is the right resolution if rebase hits a conflict.
+          for attempt in 1 2 3 4 5; do
+            if git push; then
+              echo "Push succeeded on attempt $attempt."
+              exit 0
+            fi
+            echo "Push rejected on attempt $attempt; rebasing onto origin/main."
+            git pull --rebase -X ours origin main
+          done
+          echo "Push still failing after 5 attempts." >&2
+          exit 1
 
   deploy-pages:
     needs: run
