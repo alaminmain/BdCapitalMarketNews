@@ -8,15 +8,7 @@
     <docs>http://www.rssboard.org/rss-specification</docs>
     <generator>BD-Markets-NewsBot</generator>
     <language>en</language>
-    <lastBuildDate>Tue, 12 May 2026 04:29:41 +0000</lastBuildDate>
-    <item>
-      <title>[BAD] AGRANINS Q1 Earnings Decline on Lower Income, Higher Costs</title>
-      <link>https://www.dsebd.org/</link>
-      <description>&lt;p&gt;&lt;strong&gt;Category:&lt;/strong&gt; Bad&lt;/p&gt;&lt;p&gt;AGRANINS reported a decline in consolidated first-quarter Earnings Per Share (EPS) to Tk. 0.17 from Tk. 0.33 in the prior year. The company also experienced negative consolidated Net Operating Cash Flow Per Share (NOCFPS) of Tk. (0.14), primarily due to reduced premium income and increased management expenses.&lt;/p&gt;&lt;p&gt;&lt;strong&gt;Why this matters:&lt;/strong&gt; A significant drop in Earnings Per Share and a negative Net Operating Cash Flow Per Share, driven by reduced income and increased expenses, signals deteriorating financial performance.&lt;/p&gt;&lt;p&gt;&lt;a href="https://www.dsebd.org/"&gt;Read original source&lt;/a&gt;&lt;/p&gt;&lt;p&gt;&lt;em&gt;Recorded: 2026-05-11&lt;/em&gt;&lt;/p&gt;</description>
-      <guid isPermaLink="false">bd-markets-29-2026-05-11</guid>
-      <category>Bad</category>
-      <pubDate>Mon, 11 May 2026 10:14:16 +0000</pubDate>
-    </item>
+    <lastBuildDate>Tue, 12 May 2026 06:08:45 +0000</lastBuildDate>
     <item>
       <title>[BAD] DBH Q1 Cash Flow Turns Negative Amid Deposit Outflows</title>
       <link>https://www.dsebd.org/</link>
@@ -408,6 +400,14 @@
       <guid isPermaLink="false">bd-markets-78-2026-05-12</guid>
       <category>Good</category>
       <pubDate>Tue, 12 May 2026 04:29:41 +0000</pubDate>
+    </item>
+    <item>
+      <title>[BAD] Several Mutual Funds Experience Notable Daily Price Declines on DSE</title>
+      <link>https://www.dsebd.org/recent_market_information.php</link>
+      <description>&lt;p&gt;&lt;strong&gt;Category:&lt;/strong&gt; Bad&lt;/p&gt;&lt;p&gt;Today's market data indicates that multiple mutual funds, including ABB1STMF and 1JANATAMF, saw significant drops in their unit prices. ABB1STMF declined by 5.71%, and 1JANATAMF fell by 3.13%, reflecting a negative investor sentiment towards these specific investment vehicles. This performance suggests a challenging trading day for these funds on the Dhaka Stock Exchange.&lt;/p&gt;&lt;p&gt;&lt;strong&gt;Why this matters:&lt;/strong&gt; Significant daily price drops in multiple mutual funds signal immediate negative market sentiment and potential investor losses.&lt;/p&gt;&lt;p&gt;&lt;a href="https://www.dsebd.org/recent_market_information.php"&gt;Read original source&lt;/a&gt;&lt;/p&gt;&lt;p&gt;&lt;em&gt;Recorded: 2026-05-12&lt;/em&gt;&lt;/p&gt;</description>
+      <guid isPermaLink="false">bd-markets-79-2026-05-12</guid>
+      <category>Bad</category>
+      <pubDate>Tue, 12 May 2026 06:08:45 +0000</pubDate>
     </item>
   </channel>
 </rss>
