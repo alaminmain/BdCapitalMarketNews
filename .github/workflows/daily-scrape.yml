@@ -10,15 +10,18 @@ permissions:
   contents: write
   pages: write
   id-token: write
+  pull-requests: write
 
 concurrency:
   group: daily-scrape
   cancel-in-progress: false
 
 jobs:
-  run:
+  refresh:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    outputs:
+      changes: ${{ steps.commit.outputs.changes }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -44,38 +47,59 @@ jobs:
           EXTRA_FLAGS: ${{ github.event_name == 'workflow_dispatch' && '--reset-today' || '' }}
         run: python main.py --verbose $EXTRA_FLAGS
 
-      - name: Commit updated feed and database
+      - name: Sanity-check generated artifacts
         run: |
+          test -s docs/feed.xml      || { echo "feed.xml missing/empty";    exit 1; }
+          test -s docs/index.html    || { echo "index.html missing/empty";  exit 1; }
+          test -s docs/history.json  || { echo "history.json missing/empty"; exit 1; }
+          python - <<'PY'
+          import json, sys
+          d = json.load(open('docs/history.json', encoding='utf-8'))
+          rows = d.get('rows') or []
+          if not rows:
+              print('history.json has zero rows', file=sys.stderr)
+              sys.exit(1)
+          print(f'history.json ok: {len(rows)} rows')
+          PY
+
+      - name: Commit on data branch and auto-merge PR
+        id: commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE=$(date -u +%Y-%m-%d)
+          BRANCH="data/${DATE}-${{ github.run_id }}"
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/feed.xml docs/index.html market_updates.db
+          git checkout -b "$BRANCH"
+          git add docs/feed.xml docs/index.html docs/history.json market_updates.db
           if git diff --cached --quiet; then
             echo "No changes to commit."
+            echo "changes=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          git commit -m "chore(data): daily refresh $(date -u +%Y-%m-%d)"
-          # Push with rebase-on-reject. The committed files (market_updates.db,
-          # docs/feed.xml, docs/index.html) are regenerated wholesale each run,
-          # so "ours" is the right resolution if rebase hits a conflict.
-          for attempt in 1 2 3 4 5; do
-            if git push; then
-              echo "Push succeeded on attempt $attempt."
-              exit 0
-            fi
-            echo "Push rejected on attempt $attempt; rebasing onto origin/main."
-            git pull --rebase -X ours origin main
-          done
-          echo "Push still failing after 5 attempts." >&2
-          exit 1
+          git commit -m "chore(data): daily refresh $DATE"
+          git push -u origin "$BRANCH"
+          PR_URL=$(gh pr create \
+            --base main --head "$BRANCH" \
+            --title "chore(data): daily refresh $DATE" \
+            --body "Automated daily data refresh from the $DATE UTC scrape (run ${{ github.run_id }}).")
+          echo "Opened $PR_URL"
+          # Squash-merge immediately. GITHUB_TOKEN-driven merges don't trigger
+          # downstream on:push workflows, which is why deploy-pages stays in
+          # this same workflow file (see the deploy-pages job below).
+          gh pr merge "$PR_URL" --squash --delete-branch
+          echo "changes=true" >> "$GITHUB_OUTPUT"
 
   deploy-pages:
-    needs: run
+    needs: refresh
+    if: needs.refresh.outputs.changes == 'true'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Checkout latest (post-commit)
+      - name: Checkout latest main (post-merge)
         uses: actions/checkout@v4
         with:
           ref: main

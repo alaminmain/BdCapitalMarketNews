@@ -1,0 +1,72 @@
+name: Validate PR
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    # Skip validation for cron-opened data PRs — their artifacts were
+    # already generated and sanity-checked inside daily-scrape.yml. Saves
+    # CI minutes and avoids hammering DSE twice in a row.
+    if: ${{ !startsWith(github.head_ref, 'data/') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Syntax check
+        run: python -m py_compile main.py src/*.py
+
+      - name: Import smoke-test
+        run: |
+          python -c "from src import analyzer, config, database, history_generator, html_generator, rss_generator, scraper, tags"
+
+      - name: Render-only smoke (uses existing committed DB, no network)
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from src import config
+          from src.database import fetch_latest, init_db
+          from src.history_generator import write_history
+          from src.html_generator import write_html
+          from src.rss_generator import write_feed
+          init_db(config.DB_PATH)
+          latest = fetch_latest(config.DB_PATH, limit=config.MAX_FEED_ITEMS)
+          write_feed(latest, config.FEED_PATH)
+          write_html(latest, config.HTML_PATH)
+          write_history(config.DB_PATH, config.HISTORY_PATH)
+          print(f"validated render: {len(latest)} rows")
+          PY
+
+      - name: Verify rendered artifacts parse cleanly
+        run: |
+          python - <<'PY'
+          import json, xml.etree.ElementTree as E
+          d = json.load(open('docs/history.json', encoding='utf-8'))
+          assert isinstance(d.get('rows'), list), 'history.json missing rows[]'
+          E.parse('docs/feed.xml')  # raises on malformed XML
+          html = open('docs/index.html', encoding='utf-8').read()
+          assert '<section class="filter-bar"' in html, 'filter bar missing'
+          assert 'id="ui-payload"' in html,           'ui-payload script missing'
+          assert "fetch('history.json'" in html,      'history fetch missing'
+          print('artifacts ok')
+          PY

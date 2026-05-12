@@ -12,6 +12,7 @@ from google.genai import errors as genai_errors
 from google.genai import types
 
 from .config import GEMINI_API_KEY, GEMINI_MODEL
+from .tags import normalize_tags, prompt_tag_list
 
 log = logging.getLogger(__name__)
 
@@ -58,6 +59,12 @@ def _build_prompt(headlines: List[Dict[str, str]]) -> str:
         "                   when no clean Bengali equivalent exists\n"
         "  reason         : one short English sentence justifying the category\n"
         "  reason_bn      : the same reason translated into Bengali (Bangla)\n"
+        "  tags           : array of 1 to 4 strings from the CONTROLLED\n"
+        "                   vocabulary below. Pick the most specific matches\n"
+        "                   (e.g. ['Dividend','Bank'] for a bank dividend).\n"
+        "                   Use ONLY these exact slugs; do NOT invent new tags\n"
+        "                   or translate them.\n\n"
+        f"ALLOWED TAGS:\n{prompt_tag_list()}\n\n"
         "Bengali fields MUST be present and non-empty. No prose, no markdown fences."
     )
 
@@ -95,6 +102,7 @@ def _normalize(
         description_bn = str(item.get("description_bn", "")).strip()
         reason = str(item.get("reason", "")).strip()
         reason_bn = str(item.get("reason_bn", "")).strip()
+        tags = normalize_tags(item.get("tags"))
         if category not in ALLOWED_CATEGORIES or not summary or not reason:
             continue
 
@@ -116,6 +124,7 @@ def _normalize(
                 "reason": reason,
                 "reason_bn": reason_bn,
                 "source_url": source_url,
+                "tags": tags,
             }
         )
     return out

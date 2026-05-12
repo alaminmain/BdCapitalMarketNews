@@ -15,6 +15,7 @@ from src.database import (
     mark_headlines_seen,
     reset_today_seen,
 )
+from src.history_generator import write_history
 from src.html_generator import write_html
 from src.rss_generator import write_feed
 from src.scraper import scrape_all
@@ -64,10 +65,11 @@ def run(dry_run: bool = False, reset_today: bool = False) -> int:
     inserted = insert_updates(config.DB_PATH, classified)
     log.info("Stored %d new classified updates", inserted)
 
-    log.info("== Stage 5: regenerate RSS feed and HTML dashboard ==")
+    log.info("== Stage 5: regenerate RSS feed, HTML dashboard, history.json ==")
     latest = fetch_latest(config.DB_PATH, limit=config.MAX_FEED_ITEMS)
     write_feed(latest, config.FEED_PATH)
     write_html(latest, config.HTML_PATH)
+    write_history(config.DB_PATH, config.HISTORY_PATH)
 
     log.info("Pipeline complete: %d total items in feed", len(latest))
     return 0
