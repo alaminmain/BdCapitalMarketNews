@@ -31,6 +31,30 @@ There is **no test framework**. Ad-hoc verification is done with throwaway `_*.p
 - Each disclosure is **two consecutive anchors**: a title (`DBH: Dividend Declaration`) followed by a body (`The Board of Directors has recommended 15% Cash Dividend...`). `_looks_like_dse_title()` distinguishes them by checking for an all-caps prefix before `:`.
 - DSE does **not deep-link** individual disclosures — every anchor's href is just `display_news.php` (the news ID is set client-side via JS). That's why `source_url` for DSE items is just the homepage URL.
 
+### Adding a new news source: sources.json
+Generic article-list sources are declared in `sources.json` at the repo root — no Python required. The schema (see `_scrape_article_list` in `src/scraper.py`):
+
+```json
+{
+  "sources": [
+    {
+      "name": "Daily Star - Business",        // required, used as source label + dedupe key
+      "url": "https://www.thedailystar.net/business",  // required
+      "type": "article_list",                  // optional, currently the only supported type
+      "selector": "a",                         // optional, CSS selector for anchors
+      "require_domain": "thedailystar.net",    // optional, substring an absolute URL must contain
+      "exclude_url_patterns": ["/tag/", "/author/"], // optional
+      "min_title_length": 25,                  // default 25
+      "max_title_length": 220,                 // default 220
+      "filter_chrome": true,                   // default true (drops footer/nav text)
+      "max_items": 30                          // default 30
+    }
+  ]
+}
+```
+
+DSE scrapers stay as Python because their HTML shape (paired `<marquee>` anchors, table rows) is too quirky for the declarative path. A bad entry in `sources.json` only kills its own source — the outer loop in `scrape_configured_sources` catches.
+
 ### User-Agent is load-bearing
 DSE returns **403** to anything that looks like a bot, including the obvious `BD-Markets-NewsBot/1.0` string. The UA in `src/config.py` is a stock Chrome desktop string and must stay one. Same for `Accept-Language`/`Accept-Encoding` headers in `_fetch()`.
 

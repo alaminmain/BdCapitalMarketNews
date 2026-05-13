@@ -10,6 +10,7 @@ DB_PATH = ROOT / "market_updates.db"
 FEED_PATH = DOCS_DIR / "feed.xml"
 HTML_PATH = DOCS_DIR / "index.html"
 HISTORY_PATH = DOCS_DIR / "history.json"
+SOURCES_PATH = ROOT / "sources.json"
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 # Default to a Flash model so the project works on Google AI Studio's free
@@ -27,8 +28,6 @@ USER_AGENT = (
 
 DSE_HOMEPAGE_URL = "https://www.dsebd.org/"
 DSE_RECENT_MARKET_URL = "https://www.dsebd.org/recent_market_information.php"
-FE_ECONOMY_URL = "https://thefinancialexpress.com.bd/economy"
-FE_STOCK_URL = "https://thefinancialexpress.com.bd/stock"
 
 FEED_TITLE = "Bangladesh Capital & Money Markets — Daily Pulse"
 FEED_LINK = os.environ.get(
