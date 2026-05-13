@@ -18,6 +18,12 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 # account; set GEMINI_MODEL as a repo variable to opt in once enabled.
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 
+# GoatCounter subdomain (e.g. "bdmarkets" for https://bdmarkets.goatcounter.com).
+# When empty, the analytics script + visitor counter widget are omitted from the
+# rendered page. Enable "Display public stats publicly" on the GoatCounter site
+# so the /counter endpoint serves counts without auth.
+GOATCOUNTER_CODE = os.environ.get("GOATCOUNTER_CODE", "").strip()
+
 REQUEST_TIMEOUT = 20
 # Many BD news sites (DSE included) reject obvious-bot UAs with 403.
 # Use a recent desktop Chrome string; we still throttle to one request per page.

@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-from .config import FEED_DESCRIPTION, FEED_TITLE
+from .config import FEED_DESCRIPTION, FEED_TITLE, GOATCOUNTER_CODE
 from .tags import tag_vocabulary
 
 log = logging.getLogger(__name__)
@@ -107,6 +107,54 @@ def _split_company(summary: str) -> Tuple[str, str]:
 
 def _esc(s: str) -> str:
     return html.escape(s or "", quote=True)
+
+
+def _goatcounter_snippets(code: str) -> Tuple[str, str]:
+    """Build the `<head>` tracking script and the top-bar visitor-count widget.
+
+    Returns ("", "") when no GoatCounter code is configured, so the page
+    renders identically to the pre-analytics version.
+    """
+    code = (code or "").strip()
+    if not code:
+        return "", ""
+    safe = _esc(code)
+    head = (
+        f'<script data-goatcounter="https://{safe}.goatcounter.com/count" '
+        f'async src="//gc.zgo.at/count.js"></script>'
+    )
+    # The widget is hidden until the fetcher succeeds, so a flaky network or
+    # disabled public stats leaves the layout clean instead of showing dashes.
+    widget = (
+        '<div class="visitor-stats" id="visitor-stats" hidden>'
+        '<span class="vs-cell"><strong id="vs-today">—</strong> '
+        '<span data-lang="en">today</span><span data-lang="bn">আজ</span></span>'
+        '<span class="vs-sep">·</span>'
+        '<span class="vs-cell"><strong id="vs-total">—</strong> '
+        '<span data-lang="en">total</span><span data-lang="bn">মোট</span></span>'
+        '</div>'
+        '<script>'
+        '(function(){'
+        f'var GC="{safe}";'
+        'var base="https://"+GC+".goatcounter.com/counter";'
+        'var today=new Date().toISOString().slice(0,10);'
+        'Promise.all(['
+        'fetch(base+"/TOTAL.json"),'
+        'fetch(base+"/TOTAL.json?start="+today+"&end="+today)'
+        ']).then(function(rs){'
+        'if(!rs[0].ok||!rs[1].ok)throw 0;'
+        'return Promise.all(rs.map(function(r){return r.json();}));'
+        '}).then(function(d){'
+        'document.getElementById("vs-total").textContent='
+        'd[0].count_unique||d[0].count||"—";'
+        'document.getElementById("vs-today").textContent='
+        'd[1].count_unique||d[1].count||"0";'
+        'document.getElementById("visitor-stats").hidden=false;'
+        '}).catch(function(){});'
+        '})();'
+        '</script>'
+    )
+    return head, widget
 
 
 def _bilingual(en: str, bn: str, tag: str = "span", cls: str = "") -> str:
@@ -343,6 +391,7 @@ def write_html(items: List[Dict[str, str]], output_path: Path) -> Path:
     }
     js_payload_json = json.dumps(js_payload, ensure_ascii=False)
 
+    gc_head, gc_widget = _goatcounter_snippets(GOATCOUNTER_CODE)
     doc = _PAGE_TEMPLATE.format(
         head_title=_esc(head_title),
         title_en=_esc(UI["en"]["title"]),
@@ -364,6 +413,8 @@ def write_html(items: List[Dict[str, str]], output_path: Path) -> Path:
         ugly=counts.get("Ugly", 0),
         filter_bar=_render_filter_bar(),
         sections=sections,
+        goatcounter_head=gc_head,
+        visitor_widget=gc_widget,
     )
     # JSON payload has literal {}s that would break str.format(); substitute
     # via sentinel after formatting. The </script> escape is a defense in
@@ -385,6 +436,7 @@ _PAGE_TEMPLATE = """<!doctype html>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{head_title}</title>
   <link rel="alternate" type="application/rss+xml" title="{title_en}" href="feed.xml" />
+  {goatcounter_head}
   <style>
     :root {{
       --good:#16a34a; --bad:#f59e0b; --ugly:#dc2626;
@@ -444,6 +496,15 @@ _PAGE_TEMPLATE = """<!doctype html>
       border:1px solid var(--line); text-decoration:none; color:var(--fg);
       background: var(--card);
     }}
+    .visitor-stats {{
+      display:inline-flex; align-items:center; gap:.4rem;
+      font-size:.78rem; color: var(--muted);
+      padding:.4rem .8rem; border-radius:999px;
+      border:1px solid var(--line); background: var(--card);
+      font-variant-numeric: tabular-nums; line-height:1;
+    }}
+    .visitor-stats strong {{ color: var(--fg); font-weight:700; }}
+    .visitor-stats .vs-sep {{ opacity:.45; }}
     .lede {{ margin: 1.25rem 0 0; max-width: 60ch; color: var(--fg); }}
 
     .stats {{
@@ -692,6 +753,7 @@ _PAGE_TEMPLATE = """<!doctype html>
           <button type="button" data-set-lang="bn">বাং</button>
         </div>
         <a class="rss" href="feed.xml">{rss_label}</a>
+        {visitor_widget}
       </div>
     </div>
     <p class="lede"><span data-lang="en">{lede_en}</span><span data-lang="bn">{lede_bn}</span></p>

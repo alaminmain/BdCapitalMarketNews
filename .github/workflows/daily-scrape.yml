@@ -40,6 +40,7 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           FEED_PUBLIC_URL: ${{ vars.FEED_PUBLIC_URL }}
+          GOATCOUNTER_CODE: olbin
           # Manual triggers wipe today's seen_headlines so the full
           # day's batch re-enters the pipeline. Scheduled cron runs
           # respect the dedup so they only process truly-new items.
