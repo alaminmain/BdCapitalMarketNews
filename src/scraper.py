@@ -13,10 +13,11 @@ item:
 """
 from __future__ import annotations
 
+import json
 import logging
 import re
 from datetime import datetime, timezone
-from typing import Iterable, List, Dict, Optional
+from typing import Any, Iterable, List, Dict, Optional
 from urllib.parse import urljoin
 
 import requests
@@ -25,9 +26,8 @@ from bs4 import BeautifulSoup
 from .config import (
     DSE_HOMEPAGE_URL,
     DSE_RECENT_MARKET_URL,
-    FE_ECONOMY_URL,
-    FE_STOCK_URL,
     REQUEST_TIMEOUT,
+    SOURCES_PATH,
     USER_AGENT,
 )
 
@@ -205,47 +205,103 @@ def scrape_dse_recent_market() -> List[Headline]:
 
 
 # ---------------------------------------------------------------------------
-# The Financial Express (Bangladesh)
+# Generic config-driven scrapers (sources.json)
 # ---------------------------------------------------------------------------
 
-def _scrape_fe_section(url: str, label: str) -> List[Headline]:
+_SUPPORTED_TYPES = ("article_list",)
+
+
+def _load_sources_config() -> List[Dict[str, Any]]:
+    if not SOURCES_PATH.exists():
+        log.info("sources.json not found at %s; skipping config sources", SOURCES_PATH)
+        return []
+    try:
+        data = json.loads(SOURCES_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        log.error("Failed to read %s: %s", SOURCES_PATH, exc)
+        return []
+    sources = data.get("sources") if isinstance(data, dict) else None
+    if not isinstance(sources, list):
+        log.error("%s: top-level 'sources' must be a list", SOURCES_PATH)
+        return []
+    return [s for s in sources if isinstance(s, dict)]
+
+
+def _scrape_article_list(cfg: Dict[str, Any]) -> List[Headline]:
+    """Generic article-list scraper driven by a JSON entry.
+
+    Recognised fields (all optional except name + url):
+
+    - name (str):                source label used in feed + dedupe
+    - url (str):                 page to fetch
+    - selector (str):            CSS selector for anchors; default "a"
+    - require_domain (str):      substring an absolute URL must contain
+    - exclude_url_patterns (list[str]): substrings that disqualify a URL
+    - min_title_length (int):    default 25
+    - max_title_length (int):    default 220
+    - filter_chrome (bool):      apply _looks_like_chrome filter; default true
+    - max_items (int):           cap; default 30
+    """
+    name = cfg.get("name")
+    url = cfg.get("url")
+    if not name or not url:
+        log.warning("Skipping source with missing name/url: %r", cfg)
+        return []
+
     html = _fetch(url)
     if not html:
         return []
     soup = BeautifulSoup(html, "lxml")
-    items: List[Headline] = []
 
-    for a in soup.select("a"):
+    selector = cfg.get("selector", "a")
+    require_domain = cfg.get("require_domain", "")
+    exclude_patterns = cfg.get("exclude_url_patterns", []) or []
+    min_len = int(cfg.get("min_title_length", 25))
+    max_len = int(cfg.get("max_title_length", 220))
+    filter_chrome = bool(cfg.get("filter_chrome", True))
+    max_items = int(cfg.get("max_items", 30))
+
+    items: List[Headline] = []
+    for a in soup.select(selector):
         href = a.get("href", "")
         title = _clean(a.get_text(" ", strip=True))
-        if not title or len(title) < 25 or len(title) > 220:
+        if not title or len(title) < min_len or len(title) > max_len:
             continue
         if not href or href.startswith("#") or "javascript:" in href:
             continue
         absolute = urljoin(url, href)
-        # Only keep article-like links from the same domain.
-        if "thefinancialexpress.com.bd" not in absolute:
+        if require_domain and require_domain not in absolute:
             continue
-        if any(skip in absolute for skip in ("/tag/", "/author/", "/page/")):
+        if any(skip in absolute for skip in exclude_patterns):
             continue
-        if _looks_like_chrome(title):
+        if filter_chrome and _looks_like_chrome(title):
             continue
         items.append(
             {
-                "source": f"The Financial Express - {label}",
+                "source": name,
                 "title": title,
                 "url": absolute,
                 "scraped_at": _now_iso(),
             }
         )
-    return items[:30]
+    return items[:max_items]
 
 
-def scrape_financial_express() -> List[Headline]:
-    return (
-        _scrape_fe_section(FE_ECONOMY_URL, "Economy")
-        + _scrape_fe_section(FE_STOCK_URL, "Stock")
-    )
+def scrape_configured_sources() -> List[Headline]:
+    """Run every source declared in sources.json."""
+    collected: List[Headline] = []
+    for cfg in _load_sources_config():
+        stype = cfg.get("type", "article_list")
+        if stype not in _SUPPORTED_TYPES:
+            log.warning("Unknown source type %r for %r; skipping", stype, cfg.get("name"))
+            continue
+        try:
+            results = _scrape_article_list(cfg)
+            log.info("config:%s -> %d items", cfg.get("name"), len(results))
+            collected.extend(results)
+        except Exception as exc:  # one bad source must not kill the run
+            log.exception("Configured source %r crashed: %s", cfg.get("name"), exc)
+    return collected
 
 
 # ---------------------------------------------------------------------------
@@ -258,7 +314,7 @@ def scrape_all() -> List[Headline]:
     for fn in (
         scrape_dse_latest_news,
         scrape_dse_recent_market,
-        scrape_financial_express,
+        scrape_configured_sources,
     ):
         try:
             results = fn()

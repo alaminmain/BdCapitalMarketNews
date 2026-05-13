@@ -1,0 +1,62 @@
+{
+  "sources": [
+    {
+      "name": "The Financial Express - Stock",
+      "url": "https://thefinancialexpress.com.bd/stock",
+      "type": "article_list",
+      "require_domain": "thefinancialexpress.com.bd",
+      "exclude_url_patterns": ["/tag/", "/author/", "/page/"],
+      "min_title_length": 25,
+      "max_title_length": 220,
+      "max_items": 30
+    },
+    {
+      "name": "The Business Standard - Stocks",
+      "url": "https://www.tbsnews.net/economy/stocks",
+      "type": "article_list",
+      "require_domain": "tbsnews.net/economy/stocks/",
+      "exclude_url_patterns": ["/tag/", "/author/"],
+      "min_title_length": 25,
+      "max_title_length": 220,
+      "max_items": 25
+    },
+    {
+      "name": "Dhaka Tribune - Business",
+      "url": "https://www.dhakatribune.com/business",
+      "type": "article_list",
+      "require_domain": "dhakatribune.com/business/",
+      "exclude_url_patterns": ["/tag/", "/author/", "/page/"],
+      "min_title_length": 25,
+      "max_title_length": 220,
+      "max_items": 25
+    },
+    {
+      "name": "The Daily Star - Business",
+      "url": "https://www.thedailystar.net/business",
+      "type": "article_list",
+      "require_domain": "thedailystar.net/business/",
+      "exclude_url_patterns": ["/tag/", "/author/", "/page/", "/topic/"],
+      "min_title_length": 25,
+      "max_title_length": 220,
+      "max_items": 25
+    },
+    {
+      "name": "Chittagong Stock Exchange - News",
+      "url": "https://www.cse.com.bd/",
+      "type": "article_list",
+      "require_domain": "cse.com.bd/media/news/",
+      "min_title_length": 15,
+      "max_title_length": 300,
+      "max_items": 40
+    },
+    {
+      "name": "Share News 24 - Stock Market",
+      "url": "https://www.sharenews24.com/category/Stock-Market",
+      "type": "article_list",
+      "require_domain": "sharenews24.com/article/",
+      "min_title_length": 15,
+      "max_title_length": 300,
+      "max_items": 25
+    }
+  ]
+}
