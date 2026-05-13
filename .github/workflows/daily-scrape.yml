@@ -10,7 +10,6 @@ permissions:
   contents: write
   pages: write
   id-token: write
-  pull-requests: write
 
 concurrency:
   group: daily-scrape
@@ -62,16 +61,12 @@ jobs:
           print(f'history.json ok: {len(rows)} rows')
           PY
 
-      - name: Commit on data branch and auto-merge PR
+      - name: Commit data refresh to main
         id: commit
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           DATE=$(date -u +%Y-%m-%d)
-          BRANCH="data/${DATE}-${{ github.run_id }}"
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -b "$BRANCH"
           git add docs/feed.xml docs/index.html docs/history.json market_updates.db
           if git diff --cached --quiet; then
             echo "No changes to commit."
@@ -79,16 +74,10 @@ jobs:
             exit 0
           fi
           git commit -m "chore(data): daily refresh $DATE"
-          git push -u origin "$BRANCH"
-          PR_URL=$(gh pr create \
-            --base main --head "$BRANCH" \
-            --title "chore(data): daily refresh $DATE" \
-            --body "Automated daily data refresh from the $DATE UTC scrape (run ${{ github.run_id }}).")
-          echo "Opened $PR_URL"
-          # Squash-merge immediately. GITHUB_TOKEN-driven merges don't trigger
+          # Push straight to main. GITHUB_TOKEN-driven pushes don't trigger
           # downstream on:push workflows, which is why deploy-pages stays in
           # this same workflow file (see the deploy-pages job below).
-          gh pr merge "$PR_URL" --squash --delete-branch
+          git push origin HEAD:main
           echo "changes=true" >> "$GITHUB_OUTPUT"
 
   deploy-pages:
