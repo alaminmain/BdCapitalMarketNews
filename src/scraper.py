@@ -40,7 +40,15 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def _fetch(url: str) -> Optional[str]:
+def _fetch(url: str, *, verify_tls: bool = True) -> Optional[str]:
+    # NOTE: we intentionally do NOT advertise `br` in Accept-Encoding.
+    # `requests` only decodes the encodings it has installed; if the
+    # server picks brotli and we don't have the `brotli`/`brotlicffi`
+    # package, response.text returns undecoded bytes and BeautifulSoup
+    # parses garbage (silent 0-item scrape). gzip/deflate are built in;
+    # urllib3 2.x adds zstd transparently. TBS/Dhaka Tribune/Daily Star
+    # all serve brotli by default — this was the cause of those sources
+    # producing zero items since they were added.
     try:
         resp = requests.get(
             url,
@@ -51,11 +59,12 @@ def _fetch(url: str) -> Optional[str]:
                     "q=0.9,image/avif,image/webp,*/*;q=0.8"
                 ),
                 "Accept-Language": "en-US,en;q=0.9,bn;q=0.8",
-                "Accept-Encoding": "gzip, deflate, br",
+                "Accept-Encoding": "gzip, deflate",
                 "Cache-Control": "no-cache",
                 "Pragma": "no-cache",
             },
             timeout=REQUEST_TIMEOUT,
+            verify=verify_tls,
         )
         resp.raise_for_status()
         return resp.text
@@ -248,7 +257,12 @@ def _scrape_article_list(cfg: Dict[str, Any]) -> List[Headline]:
         log.warning("Skipping source with missing name/url: %r", cfg)
         return []
 
-    html = _fetch(url)
+    verify_tls = not bool(cfg.get("insecure_tls", False))
+    if not verify_tls:
+        # urllib3 emits a noisy InsecureRequestWarning every fetch otherwise.
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    html = _fetch(url, verify_tls=verify_tls)
     if not html:
         return []
     soup = BeautifulSoup(html, "lxml")

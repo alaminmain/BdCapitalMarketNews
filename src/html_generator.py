@@ -349,7 +349,13 @@ def _render_section(category: str, rows: List[Dict[str, str]]) -> str:
 
 
 def write_html(items: List[Dict[str, str]], output_path: Path) -> Path:
-    counts = Counter((r.get("category") or "") for r in items)
+    # Stat row reflects the latest day's activity, not the whole feed window.
+    # Before, "Total updates" mirrored the page slice (capped at MAX_FEED_ITEMS
+    # = 50) so it read a flat 50 every refresh regardless of how much news
+    # actually broke that day. Now it shows today's bullish+bearish+crisis.
+    latest_date = max((r.get("date") or "" for r in items), default="")
+    today_rows = [r for r in items if (r.get("date") or "") == latest_date] if latest_date else []
+    counts = Counter((r.get("category") or "") for r in today_rows)
     total = sum(counts.values())
 
     by_cat: Dict[str, List[Dict[str, str]]] = {c: [] for c in CATEGORY_ORDER}
@@ -424,7 +430,10 @@ def write_html(items: List[Dict[str, str]], output_path: Path) -> Path:
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(doc, encoding="utf-8")
-    log.info("HTML dashboard written to %s (%d items)", output_path, total)
+    log.info(
+        "HTML dashboard written to %s (%d items rendered, %d today)",
+        output_path, len(items), total,
+    )
     return output_path
 
 
@@ -436,316 +445,896 @@ _PAGE_TEMPLATE = """<!doctype html>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{head_title}</title>
   <link rel="alternate" type="application/rss+xml" title="{title_en}" href="feed.xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@300;400;500;600;700&amp;family=Noto+Serif+Bengali:wght@400;600;700&amp;family=Hind+Siliguri:wght@400;500;600;700&amp;display=swap" />
   {goatcounter_head}
   <style>
+    /* ====================================================================
+       Palette — warm editorial cream by day, deep ink at night. The brand
+       leans on a single restrained accent (oxblood) and lets typography do
+       the heavy lifting.
+       ==================================================================== */
     :root {{
-      --good:#16a34a; --bad:#f59e0b; --ugly:#dc2626;
-      --bg:#f6f8fb; --fg:#0f172a; --card:#ffffff;
-      --muted:#64748b; --line:#e2e8f0; --chip:#0f172a14;
-      color-scheme: light dark;
+      --bg:        #f6f1e6;
+      --bg-2:      #efe7d6;
+      --paper:     #ffffff;
+      --ink:       #1a140d;
+      --ink-soft:  #3d3326;
+      --muted:     #847559;
+      --line:      #ddd0b3;
+      --line-soft: #e9dec6;
+      --good:      #146346;
+      --good-soft: #d6ead9;
+      --bad:       #a55408;
+      --bad-soft:  #f3e0c4;
+      --ugly:      #921a1a;
+      --ugly-soft: #f3d2c8;
+      --accent:    #1a140d;
+      --rule:      rgba(26, 20, 13, .08);
+      --shadow-sm: 0 1px 2px rgba(26,20,13,.05);
+      --shadow-md: 0 1px 2px rgba(26,20,13,.05), 0 12px 28px -12px rgba(26,20,13,.15);
+      --shadow-lg: 0 8px 40px -10px rgba(26,20,13,.25);
+      color-scheme: light;
     }}
     @media (prefers-color-scheme: dark) {{
       :root {{
-        --bg:#0b1220; --fg:#e6edf3; --card:#111827;
-        --muted:#94a3b8; --line:#1f2937; --chip:#e6edf314;
+        --bg:        #0d0a06;
+        --bg-2:      #15110a;
+        --paper:     #181308;
+        --ink:       #f4e9d4;
+        --ink-soft:  #d5c5a3;
+        --muted:     #8d806a;
+        --line:      #2a2113;
+        --line-soft: #1d160c;
+        --good:      #5ed099;
+        --good-soft: #1a2e25;
+        --bad:       #f6a559;
+        --bad-soft:  #2d2114;
+        --ugly:      #f08585;
+        --ugly-soft: #2d1818;
+        --accent:    #f4e9d4;
+        --rule:      rgba(244,233,212,.07);
+        --shadow-sm: none;
+        --shadow-md: 0 12px 40px rgba(0,0,0,.5);
+        --shadow-lg: 0 24px 80px rgba(0,0,0,.6);
+        color-scheme: dark;
       }}
     }}
+
     * {{ box-sizing: border-box; }}
-    html,body {{ margin:0; padding:0; }}
+    html {{ scroll-behavior: smooth; }}
+    html, body {{ margin:0; padding:0; }}
+
     body {{
-      font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-      background: var(--bg); color: var(--fg);
-      padding: 2rem 1.25rem 4rem;
+      font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+                   Roboto, sans-serif;
+      font-size: 16.5px;
+      line-height: 1.6;
+      color: var(--ink);
+      background:
+        radial-gradient(ellipse 90rem 36rem at 100% -10%,
+                        color-mix(in srgb, var(--bad) 8%, transparent),
+                        transparent 60%),
+        radial-gradient(ellipse 80rem 40rem at -10% 50%,
+                        color-mix(in srgb, var(--good) 5%, transparent),
+                        transparent 60%),
+        var(--bg);
+      background-attachment: fixed;
+      min-height: 100vh;
+      padding: 2.5rem 1.5rem 5rem;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
     }}
     body[data-lang="bn"] {{
-      font-family: "Noto Sans Bengali", "Hind Siliguri", "SolaimanLipi",
-                   "Kalpurush", system-ui, sans-serif;
+      font-family: 'Hind Siliguri', 'Noto Sans Bengali', system-ui, sans-serif;
     }}
 
-    /* Bilingual show/hide. Elements tagged data-lang="any" stay visible
-       in both modes so DB rows that lack a Bengali translation don't
-       disappear when the user toggles to bn. */
+    /* Bilingual show/hide — `any` rows stay visible in both modes. */
     body[data-lang="en"] [data-lang="bn"] {{ display: none !important; }}
     body[data-lang="bn"] [data-lang="en"] {{ display: none !important; }}
 
-    .wrap {{ max-width: 1340px; margin: 0 auto; }}
-    .top {{
-      display:flex; align-items:flex-start; justify-content:space-between;
-      flex-wrap:wrap; gap:1rem;
-    }}
-    h1 {{ margin:0; font-size:1.8rem; letter-spacing:-.02em; }}
-    .sub {{ color: var(--muted); margin: .25rem 0 0; }}
-    .top-actions {{ display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; }}
+    .wrap {{ max-width: 1280px; margin: 0 auto; }}
 
-    .lang-switch {{
-      display:inline-flex; border:1px solid var(--line); border-radius:999px;
-      overflow:hidden; background: var(--card);
+    /* ====================================================================
+       Masthead
+       ==================================================================== */
+    .top {{
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 1.5rem 2rem;
+      align-items: end;
+      padding-bottom: 1.75rem;
+      border-bottom: 1px solid var(--line);
+      position: relative;
     }}
+    .top::after {{
+      content: '';
+      position: absolute;
+      bottom: -3px; left: 0;
+      width: 64px; height: 5px;
+      background: var(--ugly);
+      border-radius: 2px;
+    }}
+    @media (max-width: 720px) {{
+      .top {{ grid-template-columns: 1fr; }}
+    }}
+
+    .brand h1 {{
+      font-family: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+      font-weight: 400;
+      font-size: clamp(2.1rem, 5.5vw, 3.8rem);
+      line-height: 1;
+      letter-spacing: -.025em;
+      margin: 0;
+      color: var(--ink);
+    }}
+    body[data-lang="bn"] .brand h1 {{
+      font-family: 'Noto Serif Bengali', 'Hind Siliguri', serif;
+      font-size: clamp(1.6rem, 4.5vw, 2.8rem);
+      line-height: 1.25;
+      letter-spacing: -.01em;
+    }}
+    .brand .eyebrow {{
+      display: inline-flex;
+      align-items: center;
+      gap: .5rem;
+      color: var(--muted);
+      font-size: .68rem;
+      font-weight: 700;
+      letter-spacing: .22em;
+      text-transform: uppercase;
+      font-variant-numeric: tabular-nums;
+      margin: 0 0 .85rem;
+    }}
+    .brand .sub {{
+      margin: 1rem 0 0;
+      color: var(--muted);
+      font-size: .78rem;
+      letter-spacing: .04em;
+      font-variant-numeric: tabular-nums;
+      display: inline-flex;
+      align-items: center;
+      gap: .55rem;
+    }}
+    .live-dot {{
+      display: inline-block;
+      width: 8px; height: 8px;
+      background: var(--good);
+      border-radius: 50%;
+      position: relative;
+      flex: 0 0 auto;
+    }}
+    .live-dot::after {{
+      content: '';
+      position: absolute;
+      inset: -3px;
+      border-radius: 50%;
+      background: var(--good);
+      opacity: .4;
+      animation: pulse 2.4s cubic-bezier(.4,0,.6,1) infinite;
+    }}
+    @keyframes pulse {{
+      0%, 100% {{ transform: scale(1); opacity: .4; }}
+      70%      {{ transform: scale(2.6); opacity: 0; }}
+    }}
+
+    .top-actions {{
+      display: flex;
+      gap: .45rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }}
+
+    /* Sliding language switch */
+    .lang-switch {{
+      display: inline-flex;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 3px;
+      position: relative;
+      box-shadow: var(--shadow-sm);
+    }}
+    .lang-switch::before {{
+      content: '';
+      position: absolute;
+      top: 3px; bottom: 3px;
+      left: 3px;
+      width: calc(50% - 3px);
+      background: var(--ink);
+      border-radius: 999px;
+      transition: transform .35s cubic-bezier(.65,.05,.36,1);
+      z-index: 0;
+    }}
+    body[data-lang="bn"] .lang-switch::before {{ transform: translateX(100%); }}
     .lang-switch button {{
-      background: transparent; color: var(--fg); border:0;
-      padding:.4rem .8rem; font: inherit; font-size:.82rem;
-      cursor:pointer; line-height:1;
+      position: relative;
+      z-index: 1;
+      background: transparent;
+      color: var(--muted);
+      border: 0;
+      padding: .35rem .9rem;
+      font: inherit;
+      font-family: 'Geist', sans-serif;
+      font-size: .76rem;
+      font-weight: 700;
+      letter-spacing: .04em;
+      cursor: pointer;
+      border-radius: 999px;
+      transition: color .35s ease;
+      line-height: 1;
     }}
     body[data-lang="en"] .lang-switch [data-set-lang="en"],
     body[data-lang="bn"] .lang-switch [data-set-lang="bn"] {{
-      background: var(--fg); color: var(--bg); font-weight:700;
+      color: var(--bg);
     }}
 
     .rss {{
-      font-size:.85rem; padding:.4rem .85rem; border-radius:999px;
-      border:1px solid var(--line); text-decoration:none; color:var(--fg);
-      background: var(--card);
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      font-size: .78rem;
+      font-weight: 500;
+      padding: .5rem .95rem;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      text-decoration: none;
+      color: var(--ink);
+      background: var(--paper);
+      box-shadow: var(--shadow-sm);
+      transition: all .2s ease;
     }}
-    .visitor-stats {{
-      display:inline-flex; align-items:center; gap:.4rem;
-      font-size:.78rem; color: var(--muted);
-      padding:.4rem .8rem; border-radius:999px;
-      border:1px solid var(--line); background: var(--card);
-      font-variant-numeric: tabular-nums; line-height:1;
+    .rss::before {{
+      content: '';
+      display: inline-block;
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      background: var(--bad);
+      box-shadow:
+        inset 0 0 0 2px var(--paper),
+        0 0 0 1px var(--bad);
     }}
-    .visitor-stats strong {{ color: var(--fg); font-weight:700; }}
-    .visitor-stats .vs-sep {{ opacity:.45; }}
-    .lede {{ margin: 1.25rem 0 0; max-width: 60ch; color: var(--fg); }}
+    .rss:hover {{
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+      border-color: var(--ink);
+    }}
 
+    .visitor-stats {{
+      display: inline-flex;
+      align-items: center;
+      gap: .5rem;
+      font-size: .76rem;
+      color: var(--muted);
+      padding: .5rem .9rem;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--paper);
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+      box-shadow: var(--shadow-sm);
+    }}
+    .visitor-stats strong {{ color: var(--ink); font-weight: 700; }}
+    .visitor-stats .vs-sep {{ opacity: .35; }}
+
+    .lede {{
+      margin: 1.6rem 0 0;
+      max-width: 58ch;
+      color: var(--ink-soft);
+      font-size: 1.08rem;
+      line-height: 1.55;
+    }}
+
+    /* ====================================================================
+       Stat strip — four cards sharing a single hairline grid
+       ==================================================================== */
     .stats {{
-      display:grid; gap:1rem;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-      margin: 2rem 0 2.5rem;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1px;
+      background: var(--line);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      overflow: hidden;
+      margin: 2.5rem 0 2.25rem;
+      box-shadow: var(--shadow-md);
+    }}
+    @media (max-width: 720px) {{
+      .stats {{ grid-template-columns: repeat(2, 1fr); }}
     }}
     .stat {{
-      background: var(--card); border:1px solid var(--line);
-      border-radius:14px; padding:1.1rem 1.25rem;
-      box-shadow: 0 1px 0 rgba(15,23,42,.02);
+      background: var(--paper);
+      padding: 1.5rem 1.4rem 1.4rem;
+      position: relative;
+      overflow: hidden;
+      transition: background .25s ease;
     }}
-    .stat .num {{
-      font-size: 2.6rem; font-weight: 800; line-height:1;
-      letter-spacing:-.03em; font-variant-numeric: tabular-nums;
+    .stat::before {{
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: var(--ink);
+      transform: scaleX(0);
+      transform-origin: left center;
+      transition: transform .35s cubic-bezier(.65,.05,.36,1);
     }}
-    .stat .label {{
-      margin-top:.4rem; font-size:.78rem; color: var(--muted);
-      text-transform: uppercase; letter-spacing:.08em; font-weight:600;
-    }}
-    .stat.good .num, .stat.good .label {{ color: var(--good); }}
-    .stat.bad  .num, .stat.bad  .label {{ color: var(--bad);  }}
-    .stat.ugly .num, .stat.ugly .label {{ color: var(--ugly); }}
+    .stat.good::before {{ background: var(--good); }}
+    .stat.bad::before  {{ background: var(--bad); }}
+    .stat.ugly::before {{ background: var(--ugly); }}
+    .stat:hover::before {{ transform: scaleX(1); }}
+    .stat:hover {{ background: color-mix(in srgb, var(--paper) 92%, var(--bg)); }}
 
+    .stat .num {{
+      display: block;
+      font-family: 'Instrument Serif', Georgia, serif;
+      font-size: clamp(2.6rem, 5.5vw, 3.6rem);
+      line-height: .95;
+      letter-spacing: -.045em;
+      font-weight: 400;
+      font-variant-numeric: tabular-nums;
+      color: var(--ink);
+    }}
+    .stat.good .num {{ color: var(--good); }}
+    .stat.bad  .num {{ color: var(--bad); }}
+    .stat.ugly .num {{ color: var(--ugly); }}
+
+    .stat .label {{
+      margin-top: .65rem;
+      font-size: .67rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .16em;
+      font-weight: 700;
+      font-family: 'Geist', sans-serif;
+    }}
+    .stat .glyph {{
+      position: absolute;
+      top: 1.2rem; right: 1.3rem;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: .2;
+    }}
+    .stat.good {{ color: var(--good); }}
+    .stat.bad  {{ color: var(--bad); }}
+    .stat.ugly {{ color: var(--ugly); }}
+
+    /* ====================================================================
+       Filter bar — sticky, with backdrop blur
+       ==================================================================== */
+    .filter-bar {{
+      position: sticky;
+      top: .85rem;
+      z-index: 30;
+      background: color-mix(in srgb, var(--paper) 88%, transparent);
+      backdrop-filter: saturate(140%) blur(10px);
+      -webkit-backdrop-filter: saturate(140%) blur(10px);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: .9rem 1rem;
+      margin: 0 0 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: .7rem;
+      box-shadow: var(--shadow-sm);
+      transition: box-shadow .25s ease, border-color .25s ease;
+    }}
+    .filter-bar.is-active {{
+      border-color: var(--ink);
+      box-shadow: var(--shadow-md);
+    }}
+
+    .filter-row {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: .45rem;
+      align-items: center;
+    }}
+    .filter-row-top {{ gap: .5rem; }}
+    .filter-row-label {{
+      font-size: .62rem;
+      color: var(--muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .14em;
+      font-family: 'Geist', sans-serif;
+      margin-right: .2rem;
+    }}
+
+    .filter-field {{
+      display: flex;
+      flex-direction: column;
+      gap: .15rem;
+      flex: 0 0 auto;
+    }}
+    .filter-field.filter-search {{
+      flex: 1 1 240px;
+      min-width: 180px;
+      position: relative;
+    }}
+    .filter-field.filter-search::before {{
+      content: '';
+      position: absolute;
+      left: .9rem;
+      top: 50%;
+      width: 13px; height: 13px;
+      transform: translateY(-50%);
+      border: 1.5px solid var(--muted);
+      border-radius: 50%;
+      pointer-events: none;
+    }}
+    .filter-field.filter-search::after {{
+      content: '';
+      position: absolute;
+      left: 1.55rem;
+      top: 58%;
+      width: 5px; height: 1.5px;
+      background: var(--muted);
+      transform: rotate(45deg);
+      pointer-events: none;
+    }}
+    .filter-search input {{ padding-left: 2.25rem !important; }}
+
+    .filter-field .lbl {{
+      font-size: .58rem;
+      color: var(--muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .14em;
+      font-family: 'Geist', sans-serif;
+    }}
+    .vh {{
+      position: absolute !important;
+      width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+    }}
+
+    .filter-bar input[type="search"],
+    .filter-bar input[type="text"],
+    .filter-bar input[type="date"] {{
+      font: inherit;
+      font-family: 'Geist', sans-serif;
+      font-size: .9rem;
+      padding: .55rem .85rem;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: var(--bg);
+      color: var(--ink);
+      min-width: 9rem;
+      transition: all .2s ease;
+    }}
+    .filter-bar input:focus {{
+      outline: none;
+      border-color: var(--ink);
+      background: var(--paper);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--ink) 12%, transparent);
+    }}
+
+    .filter-reset {{
+      font: inherit;
+      font-family: 'Geist', sans-serif;
+      font-size: .72rem;
+      font-weight: 700;
+      padding: .55rem .9rem;
+      border-radius: 10px;
+      cursor: pointer;
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--line);
+      margin-left: auto;
+      transition: all .2s ease;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+    }}
+    .filter-reset:hover {{ color: var(--ink); border-color: var(--ink); }}
+
+    .cat-chip, .filter-chip {{
+      font: inherit;
+      font-family: 'Geist', sans-serif;
+      font-size: .76rem;
+      font-weight: 600;
+      padding: .4rem .9rem;
+      border-radius: 999px;
+      cursor: pointer;
+      background: transparent;
+      color: var(--ink);
+      border: 1px solid var(--line);
+      line-height: 1;
+      transition: all .18s cubic-bezier(.4,0,.2,1);
+    }}
+    .cat-chip:hover, .filter-chip:hover {{
+      border-color: var(--ink);
+      transform: translateY(-1px);
+    }}
+    .cat-chip.is-active {{
+      background: var(--ink); color: var(--bg); border-color: var(--ink);
+    }}
+    .cat-chip.cat-good-chip.is-active {{ background: var(--good); border-color: var(--good); color: var(--paper); }}
+    .cat-chip.cat-bad-chip.is-active  {{ background: var(--bad);  border-color: var(--bad);  color: var(--paper); }}
+    .cat-chip.cat-ugly-chip.is-active {{ background: var(--ugly); border-color: var(--ugly); color: var(--paper); }}
+    .filter-chip.is-active {{
+      background: var(--ink); color: var(--bg); border-color: var(--ink);
+    }}
+    .filter-chips {{ display: flex; flex-wrap: wrap; gap: .35rem; }}
+
+    .filter-status {{
+      margin: .25rem 0 0;
+      font-size: .78rem;
+      color: var(--muted);
+      font-style: italic;
+    }}
+
+    .kbd {{
+      display: inline-block;
+      padding: 1px 6px;
+      border: 1px solid var(--line);
+      border-bottom-width: 2px;
+      border-radius: 4px;
+      background: var(--bg);
+      font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+      font-size: .68rem;
+      line-height: 1.2;
+      color: var(--muted);
+      font-weight: 600;
+    }}
+
+    /* ====================================================================
+       Default 3-column groups view
+       ==================================================================== */
     .groups {{
-      display:grid; gap:1.25rem; align-items:start;
+      display: grid;
+      gap: 1.5rem;
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      margin-top: 1.5rem;
+      align-items: start;
     }}
     @media (max-width: 1100px) {{
-      .groups {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
+      .groups {{ grid-template-columns: repeat(2, 1fr); }}
     }}
     @media (max-width: 720px) {{
       .groups {{ grid-template-columns: 1fr; }}
     }}
     .group {{
-      background: var(--card); border:1px solid var(--line);
-      border-radius:14px; padding:.85rem .9rem 1rem;
-      display:flex; flex-direction:column; min-width: 0;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 1.2rem 1.2rem 1.4rem;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      box-shadow: var(--shadow-sm);
     }}
     .group-head {{
-      display:flex; align-items:baseline; gap:.55rem; flex-wrap:wrap;
-      padding-bottom:.55rem; margin-bottom:.85rem;
-      border-bottom: 2px solid var(--line);
+      display: flex;
+      align-items: baseline;
+      gap: .6rem;
+      flex-wrap: wrap;
+      padding: 0 0 .9rem;
+      margin: 0 0 1rem;
+      border-bottom: 1px solid var(--line-soft);
+      position: relative;
     }}
-    .group-good .group-head {{ border-bottom-color: var(--good); }}
-    .group-bad  .group-head {{ border-bottom-color: var(--bad);  }}
-    .group-ugly .group-head {{ border-bottom-color: var(--ugly); }}
+    .group-head::after {{
+      content: '';
+      position: absolute;
+      bottom: -1px; left: 0;
+      width: 48px; height: 2px;
+      border-radius: 1px;
+    }}
+    .group-good .group-head::after {{ background: var(--good); }}
+    .group-bad  .group-head::after {{ background: var(--bad); }}
+    .group-ugly .group-head::after {{ background: var(--ugly); }}
+
     .group-head h2 {{
-      margin:0; display:flex; align-items:baseline; gap:.5rem;
-      font-size:1rem; font-weight:600;
+      margin: 0;
+      display: inline-flex;
+      align-items: baseline;
+      gap: .55rem;
+      font-size: 1rem;
+      font-weight: 600;
+      font-family: 'Geist', sans-serif;
     }}
     .group-name {{
-      display:inline-block; font-size:1.15rem; font-weight:800;
-      padding:.18rem .7rem; border-radius:8px; color:#fff;
-      letter-spacing:.04em; text-transform:uppercase;
-      box-shadow: 0 2px 6px rgba(15,23,42,.15);
+      font-family: 'Instrument Serif', Georgia, serif;
+      font-style: italic;
+      font-weight: 400;
+      font-size: 1.75rem;
+      letter-spacing: -.01em;
+      line-height: 1;
     }}
-    .group-good .group-name {{ background: var(--good); }}
-    .group-bad  .group-name {{ background: var(--bad);  }}
-    .group-ugly .group-name {{ background: var(--ugly); }}
+    body[data-lang="bn"] .group-name {{
+      font-family: 'Noto Serif Bengali', 'Hind Siliguri', serif;
+      font-style: normal;
+      font-size: 1.4rem;
+    }}
+    .group-good .group-name {{ color: var(--good); }}
+    .group-bad  .group-name {{ color: var(--bad); }}
+    .group-ugly .group-name {{ color: var(--ugly); }}
+
     .count {{
-      color: var(--muted); font-weight:600; font-size:.75rem;
-      padding:.12rem .45rem; border-radius:999px; background: var(--chip);
+      color: var(--muted);
+      font-weight: 500;
+      font-size: .75rem;
+      font-variant-numeric: tabular-nums;
+      font-family: 'Geist', sans-serif;
     }}
     .group-blurb {{
-      color: var(--muted); margin:0; font-size:.78rem; flex:1 1 100%;
+      color: var(--muted);
+      margin: 0;
+      font-size: .78rem;
+      flex: 1 1 100%;
+      line-height: 1.5;
     }}
 
-    .cards {{ display:flex; flex-direction:column; gap:.7rem; }}
+    /* ====================================================================
+       Card
+       ==================================================================== */
+    .cards {{ display: flex; flex-direction: column; gap: .9rem; }}
     .card {{
-      background: var(--bg); border:1px solid var(--line);
-      border-left:3px solid var(--line);
-      border-radius:10px; padding:.7rem .85rem;
-      display:flex; flex-direction:column;
+      background: var(--bg-2);
+      border: 1px solid var(--line-soft);
+      border-radius: 12px;
+      padding: 1rem 1.1rem 1.05rem;
+      display: flex;
+      flex-direction: column;
+      gap: .55rem;
+      transition: transform .25s cubic-bezier(.4,0,.2,1),
+                  box-shadow .25s cubic-bezier(.4,0,.2,1),
+                  border-color .25s ease,
+                  background .25s ease;
+      position: relative;
     }}
     @media (prefers-color-scheme: dark) {{
-      .card {{ background: rgba(255,255,255,.025); }}
+      .card {{ background: color-mix(in srgb, var(--paper) 85%, var(--bg)); }}
     }}
-    .cat-good {{ border-left-color: var(--good); }}
-    .cat-bad  {{ border-left-color: var(--bad);  }}
-    .cat-ugly {{ border-left-color: var(--ugly); }}
+    .card:hover {{
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+      border-color: var(--ink);
+      background: var(--paper);
+    }}
+    .cat-good {{ box-shadow: inset 3px 0 0 var(--good); }}
+    .cat-bad  {{ box-shadow: inset 3px 0 0 var(--bad);  }}
+    .cat-ugly {{ box-shadow: inset 3px 0 0 var(--ugly); }}
+    .cat-good:hover {{ box-shadow: inset 3px 0 0 var(--good), var(--shadow-md); }}
+    .cat-bad:hover  {{ box-shadow: inset 3px 0 0 var(--bad),  var(--shadow-md); }}
+    .cat-ugly:hover {{ box-shadow: inset 3px 0 0 var(--ugly), var(--shadow-md); }}
+
     .card header {{
-      display:flex; align-items:center; gap:.4rem; flex-wrap:wrap;
-      margin-bottom:.35rem;
+      display: flex;
+      align-items: center;
+      gap: .45rem;
+      flex-wrap: wrap;
+      margin-bottom: 0;
     }}
     .badge {{
-      font-size:.62rem; font-weight:700; padding:.12rem .45rem;
-      border-radius:999px; text-transform:uppercase; letter-spacing:.06em;
-      color:#fff;
+      font-size: .58rem;
+      font-weight: 800;
+      padding: .15rem .5rem;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      color: var(--paper);
+      font-family: 'Geist', sans-serif;
+      line-height: 1.4;
     }}
     .cat-good .badge {{ background: var(--good); }}
-    .cat-bad  .badge {{ background: var(--bad);  }}
+    .cat-bad  .badge {{ background: var(--bad); }}
     .cat-ugly .badge {{ background: var(--ugly); }}
     .ticker {{
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-weight:700; font-size:.74rem;
-      padding:.1rem .4rem; border-radius:5px; background: var(--chip);
+      font-family: 'Geist', ui-monospace, monospace;
+      font-weight: 700;
+      font-size: .7rem;
+      padding: .12rem .5rem;
+      border-radius: 4px;
+      background: var(--paper);
+      color: var(--ink);
+      border: 1px solid var(--line);
+      letter-spacing: .04em;
     }}
     .card time {{
-      margin-left:auto; color: var(--muted); font-size:.72rem;
+      margin-left: auto;
+      color: var(--muted);
+      font-size: .7rem;
       font-variant-numeric: tabular-nums;
+      font-family: 'Geist', sans-serif;
     }}
     .card h3 {{
-      margin:.1rem 0 .4rem; font-size:.95rem; line-height:1.3;
-      font-weight:600;
+      margin: .1rem 0 0;
+      font-family: 'Instrument Serif', Georgia, serif;
+      font-weight: 400;
+      font-size: 1.25rem;
+      line-height: 1.25;
+      letter-spacing: -.012em;
+      color: var(--ink);
     }}
-    .desc {{ margin: 0 0 .5rem; font-size:.86rem; line-height:1.45; }}
+    body[data-lang="bn"] .card h3 {{
+      font-family: 'Noto Serif Bengali', 'Hind Siliguri', serif;
+      font-size: 1.1rem;
+      line-height: 1.5;
+      letter-spacing: 0;
+    }}
+    .desc {{
+      margin: 0;
+      font-size: .9rem;
+      line-height: 1.6;
+      color: var(--ink-soft);
+    }}
     .why {{
-      margin: 0 0 .45rem; padding:.5rem .65rem;
-      background: var(--chip); border-radius:6px;
-      font-size:.8rem; line-height:1.45;
+      margin: .15rem 0 0;
+      padding: .65rem .8rem;
+      border-radius: 8px;
+      font-size: .82rem;
+      line-height: 1.55;
+      background: var(--paper);
+      border-left: 2px solid var(--accent);
     }}
+    .cat-good .why {{ border-left-color: var(--good); background: var(--good-soft); }}
+    .cat-bad  .why {{ border-left-color: var(--bad);  background: var(--bad-soft); }}
+    .cat-ugly .why {{ border-left-color: var(--ugly); background: var(--ugly-soft); }}
     .why strong {{
-      font-size:.68rem; text-transform:uppercase; letter-spacing:.06em;
-      display:block; color: var(--muted); margin-bottom:.15rem;
-      font-weight:700;
+      display: block;
+      font-size: .56rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .16em;
+      color: var(--muted);
+      margin-bottom: .3rem;
+      font-family: 'Geist', sans-serif;
     }}
-    .src {{
-      margin-top:auto; font-size:.78rem; color:var(--fg);
-      text-decoration:none; border-bottom:1px dashed var(--muted);
-      align-self:flex-start;
-    }}
-    .src:hover {{ border-bottom-style:solid; }}
+    .why-body {{ color: var(--ink); }}
 
-    /* Per-card tag pills (shown at bottom of each card). */
     .card-tags {{
-      display:flex; flex-wrap:wrap; gap:.3rem;
-      margin: 0 0 .5rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: .3rem;
+      margin: .1rem 0 0;
     }}
     .tag-pill {{
-      font: inherit; font-size:.7rem; line-height:1;
-      padding:.22rem .5rem; border-radius:999px; cursor:pointer;
-      background: var(--chip); color: var(--fg);
-      border:1px solid var(--line); white-space:nowrap;
+      font: inherit;
+      font-family: 'Geist', sans-serif;
+      font-size: .68rem;
+      font-weight: 500;
+      line-height: 1;
+      padding: .28rem .55rem;
+      border-radius: 999px;
+      cursor: pointer;
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--line);
+      white-space: nowrap;
+      transition: all .15s ease;
     }}
-    .tag-pill:hover {{ border-color: var(--fg); }}
-
-    /* Filter bar above the groups. */
-    .filter-bar {{
-      background: var(--card); border:1px solid var(--line);
-      border-radius:14px; padding: 1rem 1.1rem;
-      margin: 0 0 1.5rem;
-      display:flex; flex-direction:column; gap:.7rem;
-    }}
-    .filter-row {{ display:flex; flex-wrap:wrap; gap:.55rem; align-items:center; }}
-    .filter-row-top {{ gap:.55rem; }}
-    .filter-row-label {{
-      font-size:.72rem; color: var(--muted); font-weight:700;
-      text-transform:uppercase; letter-spacing:.08em;
-      margin-right:.2rem;
-    }}
-    .filter-field {{
-      display:flex; flex-direction:column; gap:.15rem; flex:0 0 auto;
-    }}
-    .filter-field.filter-search {{ flex: 1 1 220px; min-width: 180px; }}
-    .filter-field .lbl {{
-      font-size:.65rem; color: var(--muted); font-weight:600;
-      text-transform:uppercase; letter-spacing:.07em;
-    }}
-    .vh {{
-      position:absolute !important; width:1px; height:1px;
-      padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0);
-      white-space:nowrap; border:0;
-    }}
-    .filter-bar input[type="search"],
-    .filter-bar input[type="text"],
-    .filter-bar input[type="date"] {{
-      font: inherit; font-size:.88rem;
-      padding:.42rem .6rem; border-radius:8px;
-      border:1px solid var(--line); background: var(--bg); color: var(--fg);
-      min-width: 9rem;
-    }}
-    .filter-bar input:focus {{ outline: 2px solid var(--fg); outline-offset: 1px; }}
-    .filter-reset {{
-      font: inherit; font-size:.78rem; font-weight:600;
-      padding:.45rem .8rem; border-radius:8px; cursor:pointer;
-      background: transparent; color: var(--muted);
-      border:1px solid var(--line); margin-left:auto;
-    }}
-    .filter-reset:hover {{ color: var(--fg); border-color: var(--fg); }}
-
-    .cat-chip, .filter-chip {{
-      font: inherit; font-size:.75rem; font-weight:600;
-      padding:.3rem .7rem; border-radius:999px; cursor:pointer;
-      background: transparent; color: var(--fg);
-      border:1px solid var(--line); line-height:1;
-    }}
-    .cat-chip:hover, .filter-chip:hover {{ border-color: var(--fg); }}
-    .cat-chip.is-active {{
-      background: var(--fg); color: var(--bg); border-color: var(--fg);
-    }}
-    .cat-chip.cat-good-chip.is-active  {{ background: var(--good); border-color: var(--good); color:#fff; }}
-    .cat-chip.cat-bad-chip.is-active   {{ background: var(--bad);  border-color: var(--bad);  color:#fff; }}
-    .cat-chip.cat-ugly-chip.is-active  {{ background: var(--ugly); border-color: var(--ugly); color:#fff; }}
-    .filter-chip.is-active {{
-      background: var(--fg); color: var(--bg); border-color: var(--fg);
-    }}
-    .filter-chips {{ display:flex; flex-wrap:wrap; gap:.35rem; }}
-    .filter-status {{
-      margin:.2rem 0 0; font-size:.78rem; color: var(--muted);
+    .tag-pill:hover {{
+      color: var(--ink);
+      border-color: var(--ink);
+      transform: translateY(-1px);
     }}
 
-    /* Filtered (JS-rendered) view: flat 3-column grid. */
+    .src {{
+      margin-top: .25rem;
+      font-size: .76rem;
+      color: var(--muted);
+      text-decoration: none;
+      font-weight: 600;
+      align-self: flex-start;
+      transition: all .15s ease;
+      font-family: 'Geist', sans-serif;
+      display: inline-flex;
+      align-items: center;
+      gap: .25rem;
+    }}
+    .src::after {{
+      content: '→';
+      transition: transform .2s ease;
+      display: inline-block;
+      font-weight: 400;
+    }}
+    .src:hover {{ color: var(--ink); }}
+    .src:hover::after {{ transform: translateX(3px); }}
+
+    /* ====================================================================
+       Filtered view (JS-rendered, flat 3-col grid)
+       ==================================================================== */
     #filtered-view {{
-      display:grid; gap: .8rem;
+      display: grid;
+      gap: 1rem;
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      margin-top: 0;
     }}
-    @media (max-width: 1100px) {{
-      #filtered-view {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
-    }}
-    @media (max-width: 720px) {{
-      #filtered-view {{ grid-template-columns: 1fr; }}
-    }}
-    #filtered-view .card {{ background: var(--card); }}
+    @media (max-width: 1100px) {{ #filtered-view {{ grid-template-columns: repeat(2, 1fr); }} }}
+    @media (max-width: 720px) {{ #filtered-view {{ grid-template-columns: 1fr; }} }}
+    #filtered-view .card {{ background: var(--paper); }}
     #filtered-empty {{
       grid-column: 1 / -1;
-      background: var(--card); border:1px dashed var(--line);
-      padding:2rem; border-radius:12px; text-align:center;
+      background: var(--paper);
+      border: 1px dashed var(--line);
+      padding: 3rem 2rem;
+      border-radius: 16px;
+      text-align: center;
       color: var(--muted);
+      font-style: italic;
     }}
 
     .empty {{
-      background: var(--card); border:1px dashed var(--line);
-      padding:2rem; border-radius:12px; text-align:center;
+      background: var(--paper);
+      border: 1px dashed var(--line);
+      padding: 3rem 2rem;
+      border-radius: 16px;
+      text-align: center;
       color: var(--muted);
+      font-style: italic;
     }}
+
+    /* ====================================================================
+       Footer
+       ==================================================================== */
     footer.foot {{
-      text-align:center; color: var(--muted);
-      margin-top:3rem; font-size:.85rem;
+      text-align: center;
+      color: var(--muted);
+      margin-top: 4rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--line);
+      font-size: .82rem;
+      font-family: 'Geist', sans-serif;
     }}
-    footer.foot a {{ color: var(--muted); }}
+    footer.foot a {{
+      color: var(--ink);
+      text-decoration: none;
+      border-bottom: 1px dashed var(--muted);
+    }}
+    footer.foot a:hover {{ border-bottom-style: solid; }}
+
+    /* ====================================================================
+       Entrance animations — once, fast, polite
+       ==================================================================== */
+    @keyframes riseIn {{
+      from {{ opacity: 0; transform: translateY(10px); }}
+      to   {{ opacity: 1; transform: translateY(0); }}
+    }}
+    .stats .stat,
+    .groups .group,
+    .cards .card {{
+      animation: riseIn .55s cubic-bezier(.2,.7,.2,1) backwards;
+    }}
+    .stats .stat:nth-child(1) {{ animation-delay: .02s; }}
+    .stats .stat:nth-child(2) {{ animation-delay: .08s; }}
+    .stats .stat:nth-child(3) {{ animation-delay: .14s; }}
+    .stats .stat:nth-child(4) {{ animation-delay: .20s; }}
+    .groups .group:nth-child(1) {{ animation-delay: .22s; }}
+    .groups .group:nth-child(2) {{ animation-delay: .28s; }}
+    .groups .group:nth-child(3) {{ animation-delay: .34s; }}
+    .cards .card:nth-child(1) {{ animation-delay: .30s; }}
+    .cards .card:nth-child(2) {{ animation-delay: .35s; }}
+    .cards .card:nth-child(3) {{ animation-delay: .40s; }}
+    .cards .card:nth-child(n+4) {{ animation-delay: .45s; }}
+
+    @media (prefers-reduced-motion: reduce) {{
+      *, *::before, *::after {{
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+      }}
+      html {{ scroll-behavior: auto; }}
+    }}
   </style>
 </head>
 <body data-lang="en">
   <div class="wrap">
-    <div class="top">
-      <div>
-        <h1><span data-lang="en">{title_en}</span><span data-lang="bn">{title_bn}</span></h1>
-        <p class="sub">{last_updated_label} {last_updated}</p>
+    <header class="top">
+      <div class="brand">
+        <p class="eyebrow">
+          <span data-lang="en">Bangladesh &middot; Daily Pulse</span>
+          <span data-lang="bn">বাংলাদেশ &middot; দৈনিক পাল্স</span>
+        </p>
+        <h1>
+          <span data-lang="en">{title_en}</span>
+          <span data-lang="bn">{title_bn}</span>
+        </h1>
+        <p class="sub">
+          <span class="live-dot" aria-hidden="true"></span>
+          {last_updated_label} {last_updated}
+        </p>
       </div>
       <div class="top-actions">
         <div class="lang-switch" role="group" aria-label="Language">
@@ -755,14 +1344,34 @@ _PAGE_TEMPLATE = """<!doctype html>
         <a class="rss" href="feed.xml">{rss_label}</a>
         {visitor_widget}
       </div>
-    </div>
-    <p class="lede"><span data-lang="en">{lede_en}</span><span data-lang="bn">{lede_bn}</span></p>
+    </header>
+
+    <p class="lede">
+      <span data-lang="en">{lede_en}</span>
+      <span data-lang="bn">{lede_bn}</span>
+    </p>
 
     <div class="stats">
-      <div class="stat total"><div class="num">{total}</div><div class="label">{total_label}</div></div>
-      <div class="stat good"><div class="num">{good}</div><div class="label">{good_label}</div></div>
-      <div class="stat bad"><div class="num">{bad}</div><div class="label">{bad_label}</div></div>
-      <div class="stat ugly"><div class="num">{ugly}</div><div class="label">{ugly_label}</div></div>
+      <div class="stat total">
+        <span class="glyph" aria-hidden="true"></span>
+        <span class="num" data-count="{total}">{total}</span>
+        <div class="label">{total_label}</div>
+      </div>
+      <div class="stat good">
+        <span class="glyph" aria-hidden="true"></span>
+        <span class="num" data-count="{good}">{good}</span>
+        <div class="label">{good_label}</div>
+      </div>
+      <div class="stat bad">
+        <span class="glyph" aria-hidden="true"></span>
+        <span class="num" data-count="{bad}">{bad}</span>
+        <div class="label">{bad_label}</div>
+      </div>
+      <div class="stat ugly">
+        <span class="glyph" aria-hidden="true"></span>
+        <span class="num" data-count="{ugly}">{ugly}</span>
+        <div class="label">{ugly_label}</div>
+      </div>
     </div>
 
     {filter_bar}
@@ -775,6 +1384,8 @@ _PAGE_TEMPLATE = """<!doctype html>
     <footer class="foot">
       {footer_gen} &middot; <a href="feed.xml">RSS</a> &middot;
       <a href="https://github.com/alaminmain/BdCapitalMarketNews">{footer_src}</a>
+      &middot; <span class="kbd">/</span> to search &middot;
+      <span class="kbd">Esc</span> to reset
     </footer>
   </div>
   <script type="application/json" id="ui-payload">__JS_PAYLOAD__</script>
@@ -785,6 +1396,30 @@ _PAGE_TEMPLATE = """<!doctype html>
       var TAG_VOCAB = payload.tag_vocabulary;
       var TAG_LABELS = {{}};
       TAG_VOCAB.forEach(function(t) {{ TAG_LABELS[t.slug] = t; }});
+
+      // --- Count-up animation for stat numbers ---
+      // Cubic ease-out from 0 → target over ~900ms. Runs once on load.
+      // Honors prefers-reduced-motion by snapping to the final value.
+      var reduceMotion = window.matchMedia
+        && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      function animateCount(el) {{
+        var target = parseInt(el.dataset.count || el.textContent || '0', 10);
+        if (!target || target < 1 || reduceMotion) {{
+          el.textContent = target || 0;
+          return;
+        }}
+        el.textContent = '0';
+        var duration = 900;
+        var start = performance.now();
+        function tick(now) {{
+          var t = Math.min(1, (now - start) / duration);
+          var eased = 1 - Math.pow(1 - t, 3);
+          el.textContent = Math.round(target * eased);
+          if (t < 1) requestAnimationFrame(tick);
+        }}
+        requestAnimationFrame(tick);
+      }}
+      document.querySelectorAll('.stat .num').forEach(animateCount);
 
       // --- Language switching ---
       var LANG_KEY = 'bd-pulse-lang';
@@ -816,10 +1451,15 @@ _PAGE_TEMPLATE = """<!doctype html>
       var $status = document.getElementById('f-status');
       var $defaultView = document.getElementById('default-view');
       var $filteredView = document.getElementById('filtered-view');
+      var $filterBar = document.querySelector('.filter-bar');
 
       function isActive() {{
         return !!(state.q || state.date || state.category
                   || state.tags.size || state.ticker);
+      }}
+
+      function syncFilterBarHighlight() {{
+        if ($filterBar) $filterBar.classList.toggle('is-active', isActive());
       }}
 
       function ensureHistory() {{
@@ -942,6 +1582,7 @@ _PAGE_TEMPLATE = """<!doctype html>
       }}
 
       function apply() {{
+        syncFilterBarHighlight();
         if (!isActive()) {{
           $defaultView.hidden = false;
           $filteredView.hidden = true;
@@ -1052,6 +1693,24 @@ _PAGE_TEMPLATE = """<!doctype html>
         state.ticker = (e.target.value || '').trim();
         apply();
       }}, 120));
+
+      // --- Keyboard shortcuts: '/' focuses search, Esc resets filters ---
+      document.addEventListener('keydown', function(e) {{
+        var inField = e.target
+          && /^(input|textarea|select)$/i.test(e.target.tagName);
+        if (e.key === '/' && !inField && !e.metaKey && !e.ctrlKey) {{
+          e.preventDefault();
+          $search.focus();
+          $search.select();
+          return;
+        }}
+        if (e.key === 'Escape' && isActive()) {{
+          resetAll();
+          if (document.activeElement && document.activeElement.blur) {{
+            document.activeElement.blur();
+          }}
+        }}
+      }});
     }})();
   </script>
 </body>

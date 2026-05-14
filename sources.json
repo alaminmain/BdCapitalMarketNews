@@ -47,7 +47,8 @@
       "require_domain": "cse.com.bd/media/news/",
       "min_title_length": 15,
       "max_title_length": 300,
-      "max_items": 40
+      "max_items": 40,
+      "insecure_tls": true
     },
     {
       "name": "Share News 24 - Stock Market",
