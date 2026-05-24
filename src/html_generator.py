@@ -40,6 +40,8 @@ UI = {
         "search_ph":    "Search headlines, descriptions, tickers…",
         "date_label":   "Date",
         "date_any":     "Any date",
+        "available_dates": "Available dates",
+        "close":        "Close filters",
         "ticker_ph":    "Ticker (e.g. DBH)",
         "all":          "All",
         "tags_label":   "Tags",
@@ -81,6 +83,8 @@ UI = {
         "search_ph":    "শিরোনাম, বর্ণনা, টিকার খুঁজুন…",
         "date_label":   "তারিখ",
         "date_any":     "যেকোনো তারিখ",
+        "available_dates": "উপলব্ধ তারিখ",
+        "close":        "ফিল্টার বন্ধ করুন",
         "ticker_ph":    "টিকার (যেমন DBH)",
         "all":          "সব",
         "tags_label":   "ট্যাগ",
@@ -286,8 +290,30 @@ def _render_filter_bar() -> str:
             f'</button>'
         )
     chips_html = "".join(chips)
+    filter_icon_svg = (
+        '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" '
+        'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'
+        '<path d="M2 4h12M4 8h8M6.5 12h3"/></svg>'
+    )
+    close_label_en = _esc(UI["en"]["close"])
+    close_label_bn = _esc(UI["bn"]["close"])
     return (
-        '<section class="filter-bar" aria-label="Filters">'
+        '<div class="filter-trigger-bar">'
+        f'  <button type="button" id="filter-trigger" class="filter-trigger"'
+        f'          aria-controls="filter-drawer" aria-expanded="false">'
+        f'    <span class="ftr-icon" aria-hidden="true">{filter_icon_svg}</span>'
+        f'    {_ui_label("filters")}'
+        f'    <span class="ftr-badge"><span id="f-count">0</span></span>'
+        '  </button>'
+        '  <p class="filter-status" id="f-status" hidden></p>'
+        '</div>'
+        '<div class="filter-overlay" id="filter-overlay" aria-hidden="true"></div>'
+        '<section class="filter-bar" id="filter-drawer" aria-label="Filters" aria-hidden="true">'
+        '  <div class="filter-bar-head">'
+        f'    <p class="filter-bar-title">{_ui_label("filters")}</p>'
+        f'    <button type="button" id="f-close" class="filter-close"'
+        f'            aria-label="{close_label_en}" data-label-bn="{close_label_bn}">&times;</button>'
+        '  </div>'
         '  <div class="filter-row filter-row-top">'
         f'    <label class="filter-field filter-search">'
         f'      <span class="vh">{_ui_label("filters")}</span>'
@@ -298,7 +324,8 @@ def _render_filter_bar() -> str:
         '    </label>'
         f'    <label class="filter-field">'
         f'      <span class="lbl">{_ui_label("date_label")}</span>'
-        f'      <input type="date" id="f-date" />'
+        f'      <input type="date" id="f-date" list="f-date-list" />'
+        f'      <datalist id="f-date-list"></datalist>'
         '    </label>'
         f'    <label class="filter-field">'
         f'      <span class="vh">{_ui_label("ticker_ph")}</span>'
@@ -310,6 +337,10 @@ def _render_filter_bar() -> str:
         f'    <button type="button" class="filter-reset" id="f-reset">'
         f'      {_ui_label("reset")}'
         '    </button>'
+        '  </div>'
+        '  <div class="filter-row filter-row-dates">'
+        f'    <span class="filter-row-label">{_ui_label("available_dates")}</span>'
+        '    <div class="date-chips" id="f-date-chips"></div>'
         '  </div>'
         '  <div class="filter-row filter-row-cat">'
         f'    <button type="button" class="cat-chip is-active" '
@@ -327,7 +358,6 @@ def _render_filter_bar() -> str:
         f'    <span class="filter-row-label">{_ui_label("tags_label")}</span>'
         f'    <div class="filter-chips">{chips_html}</div>'
         '  </div>'
-        '  <p class="filter-status" id="f-status" hidden></p>'
         '</section>'
     )
 
@@ -801,29 +831,172 @@ _PAGE_TEMPLATE = """<!doctype html>
     .stat.bad  {{ color: var(--bad); }}
     .stat.ugly {{ color: var(--ugly); }}
 
+    body.filter-open {{ overflow: hidden; }}
+
     /* ====================================================================
-       Filter bar — sticky, with backdrop blur
+       Filter trigger pill — sticky toggle that opens the drawer.
+       Same UX on mobile and desktop: filters live in a left-side drawer,
+       opened on demand, so they don't eat up vertical real estate.
        ==================================================================== */
-    .filter-bar {{
+    .filter-trigger-bar {{
       position: sticky;
       top: .85rem;
-      z-index: 30;
+      z-index: 25;
+      margin: 0 0 2rem;
+      display: flex;
+      align-items: center;
+      gap: .85rem;
+      flex-wrap: wrap;
       background: color-mix(in srgb, var(--paper) 88%, transparent);
       backdrop-filter: saturate(140%) blur(10px);
       -webkit-backdrop-filter: saturate(140%) blur(10px);
       border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: .9rem 1rem;
-      margin: 0 0 2rem;
-      display: flex;
-      flex-direction: column;
-      gap: .7rem;
+      border-radius: 999px;
+      padding: .4rem .55rem;
       box-shadow: var(--shadow-sm);
       transition: box-shadow .25s ease, border-color .25s ease;
     }}
-    .filter-bar.is-active {{
+    .filter-trigger-bar.is-active {{
       border-color: var(--ink);
       box-shadow: var(--shadow-md);
+    }}
+    .filter-trigger {{
+      display: inline-flex;
+      align-items: center;
+      gap: .55rem;
+      background: transparent;
+      border: 0;
+      font: inherit;
+      font-family: 'Geist', sans-serif;
+      font-size: .82rem;
+      font-weight: 600;
+      color: var(--ink);
+      cursor: pointer;
+      padding: .4rem .85rem;
+      border-radius: 999px;
+      line-height: 1;
+      transition: background .15s ease, color .15s ease;
+    }}
+    .filter-trigger:hover {{ background: var(--bg); }}
+    .filter-trigger .ftr-icon {{
+      width: 15px; height: 15px;
+      display: inline-flex;
+      flex: 0 0 auto;
+      color: var(--muted);
+      transition: color .15s ease;
+    }}
+    .filter-trigger:hover .ftr-icon,
+    .filter-trigger.is-active .ftr-icon {{ color: var(--ink); }}
+    .filter-trigger .ftr-icon svg {{ width: 100%; height: 100%; }}
+    .filter-trigger .ftr-badge {{
+      display: none;
+      align-items: center;
+      justify-content: center;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 .4rem;
+      font-size: .65rem;
+      font-weight: 800;
+      border-radius: 999px;
+      background: var(--ugly);
+      color: var(--paper);
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }}
+    .filter-trigger.is-active .ftr-badge {{ display: inline-flex; }}
+    .filter-trigger-bar .filter-status {{
+      margin: 0 .65rem 0 0;
+      flex: 1 1 auto;
+      text-align: right;
+      font-size: .76rem;
+    }}
+    @media (max-width: 560px) {{
+      .filter-trigger-bar {{ border-radius: 14px; padding: .45rem .55rem; }}
+      .filter-trigger-bar .filter-status {{
+        flex-basis: 100%;
+        text-align: left;
+        margin: .25rem .25rem 0;
+      }}
+    }}
+
+    /* Backdrop overlay shown when drawer is open */
+    .filter-overlay {{
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, .45);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .25s ease;
+      z-index: 90;
+      backdrop-filter: blur(2px);
+      -webkit-backdrop-filter: blur(2px);
+    }}
+    .filter-overlay.is-open {{
+      opacity: 1;
+      pointer-events: auto;
+    }}
+
+    /* The drawer — slides in from the left on both mobile and desktop */
+    .filter-bar {{
+      position: fixed;
+      top: 0; left: 0;
+      bottom: 0;
+      width: min(420px, 92vw);
+      z-index: 100;
+      transform: translateX(-105%);
+      background: var(--paper);
+      border-right: 1px solid var(--line);
+      border-radius: 0 18px 18px 0;
+      padding: 3.75rem 1.25rem 1.5rem;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      box-shadow: none;
+      transition: transform .35s cubic-bezier(.4,0,.2,1),
+                  box-shadow .35s ease;
+    }}
+    .filter-bar.is-open {{
+      transform: translateX(0);
+      box-shadow: var(--shadow-lg);
+    }}
+    .filter-bar-head {{
+      position: absolute;
+      top: .85rem; left: 1.25rem; right: 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .5rem;
+    }}
+    .filter-bar-title {{
+      margin: 0;
+      font-family: 'Instrument Serif', Georgia, serif;
+      font-size: 1.4rem;
+      font-weight: 400;
+      letter-spacing: -.01em;
+      color: var(--ink);
+      line-height: 1;
+    }}
+    body[data-lang="bn"] .filter-bar-title {{
+      font-family: 'Noto Serif Bengali', 'Hind Siliguri', serif;
+      font-size: 1.15rem;
+    }}
+    .filter-close {{
+      background: transparent;
+      border: 0;
+      color: var(--muted);
+      font-size: 1.5rem;
+      line-height: 1;
+      cursor: pointer;
+      padding: .15rem .55rem;
+      border-radius: 8px;
+      transition: all .15s ease;
+    }}
+    .filter-close:hover {{
+      color: var(--ink);
+      background: var(--bg);
     }}
 
     .filter-row {{
@@ -958,6 +1131,45 @@ _PAGE_TEMPLATE = """<!doctype html>
       background: var(--ink); color: var(--bg); border-color: var(--ink);
     }}
     .filter-chips {{ display: flex; flex-wrap: wrap; gap: .35rem; }}
+
+    /* Date quick-pick chips — derived from available data so users can only
+       click dates that actually have records. */
+    .filter-row-dates {{ flex-direction: column; align-items: flex-start; }}
+    .filter-row-dates .filter-row-label {{ margin-bottom: .25rem; }}
+    .date-chips {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: .35rem;
+      width: 100%;
+    }}
+    .date-chip {{
+      font: inherit;
+      font-family: 'Geist', sans-serif;
+      font-size: .72rem;
+      font-weight: 600;
+      padding: .35rem .7rem;
+      border-radius: 999px;
+      cursor: pointer;
+      background: transparent;
+      color: var(--ink-soft);
+      border: 1px solid var(--line);
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      transition: all .15s ease;
+    }}
+    .date-chip:hover {{ border-color: var(--ink); color: var(--ink); }}
+    .date-chip.is-active {{
+      background: var(--ink);
+      color: var(--bg);
+      border-color: var(--ink);
+    }}
+    .date-chips .date-chip-more {{
+      color: var(--muted);
+      font-style: italic;
+      background: transparent;
+      border: 1px dashed var(--line);
+      cursor: default;
+    }}
 
     .filter-status {{
       margin: .25rem 0 0;
@@ -1234,6 +1446,41 @@ _PAGE_TEMPLATE = """<!doctype html>
     .src:hover {{ color: var(--ink); }}
     .src:hover::after {{ transform: translateX(3px); }}
 
+    /* Card actions — source link + share button on the same row. Injected by
+       JS so older static cards get the share affordance without a re-render. */
+    .card-actions {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .65rem;
+      margin-top: .25rem;
+      flex-wrap: wrap;
+    }}
+    .card-actions .src {{ margin-top: 0; align-self: center; }}
+    .share-btn {{
+      display: inline-flex;
+      align-items: center;
+      gap: .35rem;
+      padding: .35rem .7rem;
+      font: inherit;
+      font-family: 'Geist', sans-serif;
+      font-size: .72rem;
+      font-weight: 600;
+      color: var(--muted);
+      background: transparent;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      cursor: pointer;
+      line-height: 1;
+      transition: all .15s ease;
+    }}
+    .share-btn:hover {{ color: var(--ink); border-color: var(--ink); }}
+    .share-btn svg {{ width: 13px; height: 13px; flex: 0 0 auto; }}
+    .share-btn .share-copied {{ display: none; }}
+    .share-btn.is-copied {{ color: var(--good); border-color: var(--good); }}
+    .share-btn.is-copied .share-label {{ display: none; }}
+    .share-btn.is-copied .share-copied {{ display: inline; }}
+
     /* ====================================================================
        Filtered view (JS-rendered, flat 3-col grid)
        ==================================================================== */
@@ -1452,14 +1699,98 @@ _PAGE_TEMPLATE = """<!doctype html>
       var $defaultView = document.getElementById('default-view');
       var $filteredView = document.getElementById('filtered-view');
       var $filterBar = document.querySelector('.filter-bar');
+      var $filterTriggerBar = document.querySelector('.filter-trigger-bar');
+      var $filterTrigger = document.getElementById('filter-trigger');
+      var $filterOverlay = document.getElementById('filter-overlay');
+      var $filterClose = document.getElementById('f-close');
+      var $filterCount = document.getElementById('f-count');
+      var $dateList = document.getElementById('f-date-list');
+      var $dateChips = document.getElementById('f-date-chips');
+
+      var availableDates = [];
 
       function isActive() {{
         return !!(state.q || state.date || state.category
                   || state.tags.size || state.ticker);
       }}
 
+      function activeFilterCount() {{
+        var n = 0;
+        if (state.q) n++;
+        if (state.date) n++;
+        if (state.category) n++;
+        if (state.ticker) n++;
+        n += state.tags.size;
+        return n;
+      }}
+
       function syncFilterBarHighlight() {{
-        if ($filterBar) $filterBar.classList.toggle('is-active', isActive());
+        var active = isActive();
+        if ($filterBar) $filterBar.classList.toggle('is-active', active);
+        if ($filterTriggerBar) $filterTriggerBar.classList.toggle('is-active', active);
+        if ($filterTrigger) $filterTrigger.classList.toggle('is-active', active);
+        if ($filterCount) $filterCount.textContent = activeFilterCount();
+        syncDateChips();
+      }}
+
+      function openDrawer() {{
+        if (!$filterBar) return;
+        $filterBar.classList.add('is-open');
+        $filterBar.setAttribute('aria-hidden', 'false');
+        if ($filterOverlay) $filterOverlay.classList.add('is-open');
+        if ($filterTrigger) $filterTrigger.setAttribute('aria-expanded', 'true');
+        document.body.classList.add('filter-open');
+      }}
+      function closeDrawer() {{
+        if (!$filterBar) return;
+        $filterBar.classList.remove('is-open');
+        $filterBar.setAttribute('aria-hidden', 'true');
+        if ($filterOverlay) $filterOverlay.classList.remove('is-open');
+        if ($filterTrigger) $filterTrigger.setAttribute('aria-expanded', 'false');
+        document.body.classList.remove('filter-open');
+      }}
+      function isDrawerOpen() {{
+        return $filterBar && $filterBar.classList.contains('is-open');
+      }}
+
+      function renderDateConstraints() {{
+        if (!availableDates.length) return;
+        $date.min = availableDates[availableDates.length - 1];
+        $date.max = availableDates[0];
+        if ($dateList) {{
+          $dateList.innerHTML = availableDates.map(function(d) {{
+            return '<option value="' + d + '"></option>';
+          }}).join('');
+        }}
+        if ($dateChips) {{
+          var max = 8;
+          var head = availableDates.slice(0, max);
+          var more = availableDates.length - head.length;
+          var html = head.map(function(d) {{
+            var sel = d === state.date ? ' is-active' : '';
+            return '<button type="button" class="date-chip' + sel
+                 + '" data-date="' + d + '">' + d + '</button>';
+          }}).join('');
+          if (more > 0) {{
+            html += '<span class="date-chip date-chip-more">+' + more + '</span>';
+          }}
+          $dateChips.innerHTML = html;
+        }}
+      }}
+
+      function syncDateChips() {{
+        if (!$dateChips) return;
+        var chips = $dateChips.querySelectorAll('.date-chip[data-date]');
+        chips.forEach(function(el) {{
+          el.classList.toggle('is-active', el.dataset.date === state.date);
+        }});
+      }}
+
+      function setDate(d) {{
+        state.date = d || '';
+        $date.value = state.date;
+        syncDateChips();
+        apply();
       }}
 
       function ensureHistory() {{
@@ -1470,7 +1801,16 @@ _PAGE_TEMPLATE = """<!doctype html>
             if (!r.ok) throw new Error('history.json HTTP ' + r.status);
             return r.json();
           }})
-          .then(function(j) {{ historyCache = j; return j; }})
+          .then(function(j) {{
+            historyCache = j;
+            var seen = Object.create(null);
+            (j.records || []).forEach(function(r) {{
+              if (r && r.date && !seen[r.date]) seen[r.date] = true;
+            }});
+            availableDates = Object.keys(seen).sort().reverse();
+            renderDateConstraints();
+            return j;
+          }})
           .catch(function(err) {{ historyLoading = null; throw err; }});
         return historyLoading;
       }}
@@ -1613,9 +1953,101 @@ _PAGE_TEMPLATE = """<!doctype html>
           return;
         }}
         $filteredView.innerHTML = rows.map(renderCard).join('');
+        injectShareButtons($filteredView);
         var noun = rows.length === 1 ? t.result : t.results;
         setStatus(t.showing + ' ' + rows.length + ' ' + t.of + ' ' + total
                   + ' ' + noun);
+      }}
+
+      // --- Share (Web Share API + clipboard fallback) ----------------------
+      var SHARE_ICON_SVG =
+        '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor"'
+        + ' stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"'
+        + ' aria-hidden="true">'
+        + '<circle cx="4" cy="8" r="1.8"/><circle cx="12" cy="3.5" r="1.8"/>'
+        + '<circle cx="12" cy="12.5" r="1.8"/>'
+        + '<path d="M5.5 7.1l5-2.7M5.5 8.9l5 2.7"/></svg>';
+
+      function injectShareButtons(scope) {{
+        var root = scope || document;
+        var cards = root.querySelectorAll('.card');
+        cards.forEach(function(card) {{
+          if (card.querySelector('.share-btn')) return;
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'share-btn';
+          btn.setAttribute('aria-label', 'Share');
+          btn.innerHTML = SHARE_ICON_SVG
+            + '<span class="share-label" data-lang="en">Share</span>'
+            + '<span class="share-label" data-lang="bn">শেয়ার</span>'
+            + '<span class="share-copied" data-lang="en">Copied</span>'
+            + '<span class="share-copied" data-lang="bn">কপি হয়েছে</span>';
+          var src = card.querySelector('a.src');
+          if (src && !src.parentNode.classList.contains('card-actions')) {{
+            var row = document.createElement('div');
+            row.className = 'card-actions';
+            src.parentNode.insertBefore(row, src);
+            row.appendChild(src);
+            row.appendChild(btn);
+          }} else if (src) {{
+            src.parentNode.appendChild(btn);
+          }} else {{
+            var row2 = document.createElement('div');
+            row2.className = 'card-actions';
+            row2.style.justifyContent = 'flex-end';
+            row2.appendChild(btn);
+            card.appendChild(row2);
+          }}
+        }});
+      }}
+
+      function pickByLang(card, selector) {{
+        var lang = document.body.dataset.lang || 'en';
+        var els = card.querySelectorAll(selector);
+        for (var i = 0; i < els.length; i++) {{
+          var d = els[i].dataset.lang;
+          if (d === lang || d === 'any') {{
+            return (els[i].textContent || '').trim();
+          }}
+        }}
+        return els.length ? (els[0].textContent || '').trim() : '';
+      }}
+
+      function flashCopied(btn) {{
+        btn.classList.add('is-copied');
+        setTimeout(function() {{ btn.classList.remove('is-copied'); }}, 1600);
+      }}
+
+      function onShareClick(btn) {{
+        var card = btn.closest('.card');
+        if (!card) return;
+        var title = pickByLang(card, 'h3');
+        var desc = pickByLang(card, '.desc');
+        var srcLink = card.querySelector('a.src');
+        var url = srcLink ? srcLink.href : location.href;
+        var combined = title + (desc ? '\\n\\n' + desc : '') + '\\n' + url;
+        if (navigator.share) {{
+          navigator.share({{ title: title, text: desc, url: url }})
+            .catch(function() {{}});
+          return;
+        }}
+        if (navigator.clipboard && navigator.clipboard.writeText) {{
+          navigator.clipboard.writeText(combined)
+            .then(function() {{ flashCopied(btn); }})
+            .catch(function() {{}});
+          return;
+        }}
+        var ta = document.createElement('textarea');
+        ta.value = combined;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        try {{
+          document.execCommand('copy');
+          flashCopied(btn);
+        }} catch (e) {{}}
+        document.body.removeChild(ta);
       }}
 
       function syncTagChips() {{
@@ -1672,13 +2104,31 @@ _PAGE_TEMPLATE = """<!doctype html>
           if (isActive()) apply();
           return;
         }}
+        var shareBtn = e.target.closest && e.target.closest('.share-btn');
+        if (shareBtn) {{ onShareClick(shareBtn); return; }}
         var pill = e.target.closest && e.target.closest('.tag-pill');
         if (pill) {{ toggleTag(pill.dataset.tag); return; }}
         var chip = e.target.closest && e.target.closest('.filter-chip');
         if (chip) {{ toggleTag(chip.dataset.tag); return; }}
         var catChip = e.target.closest && e.target.closest('.cat-chip');
         if (catChip) {{ setCategory(catChip.dataset.category); return; }}
+        var dateChip = e.target.closest && e.target.closest('.date-chip[data-date]');
+        if (dateChip) {{
+          var d = dateChip.dataset.date;
+          setDate(d === state.date ? '' : d);
+          return;
+        }}
         if (e.target && e.target.id === 'f-reset') {{ resetAll(); return; }}
+        if (e.target.closest && e.target.closest('#filter-trigger')) {{
+          isDrawerOpen() ? closeDrawer() : openDrawer();
+          return;
+        }}
+        if (e.target.closest && e.target.closest('#f-close')) {{
+          closeDrawer(); return;
+        }}
+        if (e.target && e.target.id === 'filter-overlay') {{
+          closeDrawer(); return;
+        }}
       }});
 
       $search.addEventListener('input', debounce(function(e) {{
@@ -1694,23 +2144,34 @@ _PAGE_TEMPLATE = """<!doctype html>
         apply();
       }}, 120));
 
-      // --- Keyboard shortcuts: '/' focuses search, Esc resets filters ---
+      // --- Keyboard shortcuts: '/' focuses search, Esc closes drawer / resets filters ---
       document.addEventListener('keydown', function(e) {{
         var inField = e.target
           && /^(input|textarea|select)$/i.test(e.target.tagName);
         if (e.key === '/' && !inField && !e.metaKey && !e.ctrlKey) {{
           e.preventDefault();
+          openDrawer();
           $search.focus();
           $search.select();
           return;
         }}
-        if (e.key === 'Escape' && isActive()) {{
-          resetAll();
-          if (document.activeElement && document.activeElement.blur) {{
-            document.activeElement.blur();
+        if (e.key === 'Escape') {{
+          if (isDrawerOpen()) {{ closeDrawer(); return; }}
+          if (isActive()) {{
+            resetAll();
+            if (document.activeElement && document.activeElement.blur) {{
+              document.activeElement.blur();
+            }}
           }}
         }}
       }});
+
+      // Inject share buttons into the static cards rendered server-side.
+      injectShareButtons(document);
+
+      // Eagerly load history so the date input has valid min/max + chips,
+      // even before the user opens the drawer.
+      ensureHistory().catch(function() {{ /* offline / missing — ignore */ }});
     }})();
   </script>
 </body>
